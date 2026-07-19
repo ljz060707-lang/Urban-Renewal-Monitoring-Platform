@@ -87,7 +87,7 @@ def main() -> None:
                     "source_date": date_value,
                     "notes": "synthetic stress case",
                     "tracking_geometry_wkt": "",
-                    "schema_version": "0.3.0",
+                    "schema_version": "0.4.0",
                     "geometry": geom,
                 }
                 for oid, geom in geoms

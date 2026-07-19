@@ -7,6 +7,7 @@ from pathlib import Path
 from urban_monitor.config import load_config
 from urban_monitor.manifest import load_manifest
 from urban_monitor.review import build_review_queue
+from urban_monitor.outputs import prepare_output
 
 
 def main() -> None:
@@ -15,6 +16,7 @@ def main() -> None:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
     cfg = load_config(args.config)
+    prepare_output(Path(cfg["output_root"]) / "review" / "index.html", force=args.force)
     path = build_review_queue(
         Path(cfg["output_root"]) / "tracking" / "tracks_summary.gpkg",
         load_manifest(cfg["manifest"], cfg["data_root"]),

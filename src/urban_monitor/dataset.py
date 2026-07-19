@@ -11,11 +11,14 @@ from torchvision.transforms.functional import pil_to_tensor
 
 
 class CocoBuildingDataset(torch.utils.data.Dataset):
-    def __init__(self, root: str | Path):
+    def __init__(self, root: str | Path, annotation_file: str | Path = "annotations.json"):
         self.root = Path(root)
-        with (self.root / "annotations.json").open("r", encoding="utf-8") as f:
+        annotation_path = Path(annotation_file)
+        if not annotation_path.is_absolute():
+            annotation_path = self.root / annotation_path
+        with annotation_path.open("r", encoding="utf-8") as f:
             payload = json.load(f)
-        self.images = payload["images"]
+        self.images = sorted(payload["images"], key=lambda item: int(item["id"]))
         self.by_image: dict[int, list[dict]] = {}
         for ann in payload["annotations"]:
             self.by_image.setdefault(int(ann["image_id"]), []).append(ann)
@@ -32,9 +35,14 @@ class CocoBuildingDataset(torch.utils.data.Dataset):
         height, width = int(info["height"]), int(info["width"])
         for ann in anns:
             seg = ann["segmentation"]
-            rles = mask_utils.frPyObjects(seg, height, width)
-            merged = mask_utils.merge(rles)
-            mask = mask_utils.decode(merged).astype(np.uint8)
+            if isinstance(seg, dict):
+                encoded = dict(seg)
+                if isinstance(encoded.get("counts"), str):
+                    encoded["counts"] = encoded["counts"].encode("ascii")
+                mask = mask_utils.decode(encoded).astype(np.uint8)
+            else:
+                rles = mask_utils.frPyObjects(seg, height, width)
+                mask = mask_utils.decode(mask_utils.merge(rles)).astype(np.uint8)
             if mask.ndim == 3:
                 mask = mask.max(axis=2)
             boxes.append(ann["bbox"])

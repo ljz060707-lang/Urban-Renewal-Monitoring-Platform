@@ -7,6 +7,7 @@ from pathlib import Path
 from urban_monitor.alignment import validate_alignment
 from urban_monitor.config import load_config
 from urban_monitor.manifest import load_manifest
+from urban_monitor.outputs import prepare_output
 
 
 def main() -> None:
@@ -17,8 +18,7 @@ def main() -> None:
     cfg = load_config(args.config)
     records = load_manifest(cfg["manifest"], cfg["data_root"])
     report = validate_alignment(records, require_projected=cfg["alignment"].get("require_projected_crs", True))
-    output = Path(cfg["output_root"]) / "alignment_report.csv"
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output = prepare_output(Path(cfg["output_root"]) / "alignment_report.csv", force=args.force)
     report.to_csv(output, index=False, encoding="utf-8-sig")
     print(report[["date", "matches_reference", "mismatch_reason"]].to_string(index=False))
     if not report["matches_reference"].all():

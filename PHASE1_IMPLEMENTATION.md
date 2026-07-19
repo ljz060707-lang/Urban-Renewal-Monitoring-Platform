@@ -1,5 +1,21 @@
 # Phase-1 implementation specification — robust high-resolution teacher
 
+## v0.4 Plug-and-Train operational entrypoint
+
+v0.4 将 Phase-1 的正式用户入口收口为：
+
+```bash
+python run.py all --aoi <aoi_id>
+```
+
+用户只需提供 `data/<aoi_id>/images` 与 `labels`。系统自动发现三种日期文件名、生成 `manifest.generated.csv`、选择本地 UTM、生成对齐工作副本、标准化 geometry-only GT、建立确定性的空间 block holdout、导出 train/val COCO、执行 Mask R-CNN 训练与 best/last checkpoint、验证、完整影像推理、tracking、observation matrix、lineage、review 和 run report。
+
+旧脚本保留用于兼容和诊断，但不再是普通用户的主流程。正式 run 写入 `outputs/<aoi_id>/runs/<run_id>`；只有完整成功才更新 `latest.json`。stage hash 分离 data、training、evaluation、inference 和 tracking，日志明确记录 `reused`、`recomputed` 或 `invalidated`。
+
+空间验证使用固定米制 block；跨 block 的 tile 被排除，因此重叠 tile 不会跨 train/val 共享像素。完整 observation status 为 `present`、`usable_absent`、`not_detected`、`unusable`、`occluded`、`registration_issue`、`not_covered` 和 `ambiguous`。只有前两项进入状态证据。
+
+置信度改为可配置结构化分数，定义见 `docs/CONFIDENCE_MODEL.md`。该分数不是概率校准值。
+
 ## 1. Scope and completion criterion
 
 Use one AOI of roughly 0.5–5 km², 3–8 dates and 0.3–2 m imagery. The phase is complete when the system can produce a reviewed building-object time series containing:

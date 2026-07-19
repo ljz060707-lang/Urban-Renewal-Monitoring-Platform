@@ -1,7 +1,7 @@
 project:
   name: urban-renewal-phase1
-  version: "0.3.0"
-  schema_version: "0.3.0"
+  version: "0.4.0"
+  schema_version: "0.4.0"
 aoi:
   aoi_id: replace_me
   aoi_name_cn: 待配置片区
@@ -13,7 +13,7 @@ manifest: data/replace_me/manifest.csv
 output_root: outputs/replace_me
 
 seed: 42
-model_version: phase1-maskrcnn-v3
+model_version: phase1-maskrcnn-v4
 
 crs:
   source_policy: preserve
@@ -110,7 +110,7 @@ review:
   chip_padding_m: 25.0
   allow_chinese_notes: true
   preserve_auto_results: true
-  review_version: "0.3.0"
+  review_version: "0.4.0"
 
 # Phase-2 handoff: filter sub-pixel events before producing 10 m labels.
 student_export:

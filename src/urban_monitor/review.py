@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 from rasterio.windows import from_bounds
 
 from .manifest import DateRecord
+from .tracking import compute_confidence_score
 
 
 STATE_OPTIONS = ["stable", "new_building", "demolished", "construction_candidate", "uncertain", "rejected"]
@@ -98,7 +99,7 @@ def build_review_queue(
                 "temporal_flag": str(row.get("temporal_flag", "")),
                 "event_refs": event_refs,
                 "images": images,
-                "schema_version": "0.3.0",
+                "schema_version": "0.4.0",
             }
         )
     lineage_rows = []
@@ -143,7 +144,7 @@ input{{padding:7px 10px;margin:3px 8px;border:1px solid #c7cdd4;border-radius:4p
 <h2>CSV</h2><textarea id='csv'></textarea>
 <script>
 const rows={payload}; const lineageRows={lineage_payload}; const states={states}; const qualityOptions={quality_options}; const lineageOptions={lineage_options};
-const key='urban-renewal-review-v3'; let labels=JSON.parse(localStorage.getItem(key)||'{{}}');
+const key='urban-renewal-review-v4'; let labels=JSON.parse(localStorage.getItem(key)||'{{}}');
 function save(){{localStorage.setItem(key,JSON.stringify(labels));}}
 const root=document.getElementById('root');
 for(const r of rows){{
@@ -178,8 +179,8 @@ function esc(v){{return '"'+String(v??'').replaceAll('"','""')+'"'}}
 function exportCSV(){{
  let out=['row_type,record_id,track_id,event_id,reviewed_state,lineage_action,date_quality_json,notes,reviewer,review_time,review_version'];
  const now=new Date().toISOString(); const reviewer=document.getElementById('reviewer').value.trim();
- for(const r of rows){{const x=labels[r.track_id]||{{}};out.push(['track',r.track_id,r.track_id,'',x.state||r.auto_state,'',JSON.stringify(x.date_quality||{{}}),x.notes||'',reviewer,now,'0.3.0'].map(esc).join(','))}}
- for(const e of lineageRows){{const x=labels[e.event_id]||{{}};out.push(['lineage',e.event_id,'',e.event_id,'',x.lineage_action||'', '',x.notes||'',reviewer,now,'0.3.0'].map(esc).join(','))}}
+ for(const r of rows){{const x=labels[r.track_id]||{{}};out.push(['track',r.track_id,r.track_id,'',x.state||r.auto_state,'',JSON.stringify(x.date_quality||{{}}),x.notes||'',reviewer,now,'0.4.0'].map(esc).join(','))}}
+ for(const e of lineageRows){{const x=labels[e.event_id]||{{}};out.push(['lineage',e.event_id,'',e.event_id,'',x.lineage_action||'', '',x.notes||'',reviewer,now,'0.4.0'].map(esc).join(','))}}
  document.getElementById('csv').value=out.join('\\n')
 }}
 </script>"""
@@ -196,7 +197,8 @@ def apply_reviews(
     *,
     lineage_path: str | Path | None = None,
     reviewer: str = "",
-    review_version: str = "0.3.0",
+    review_version: str = "0.4.0",
+    confidence_weights: dict[str, float] | None = None,
 ) -> Path:
     summary = gpd.read_file(summary_path)
     reviews = pd.read_csv(review_csv, dtype=str, encoding="utf-8-sig").fillna("")
@@ -217,7 +219,25 @@ def apply_reviews(
     merged["review_time"] = merged.get("review_time", "").fillna("") if isinstance(merged.get("review_time"), pd.Series) else ""
     merged.loc[(reviewed != "") & merged["review_time"].eq(""), "review_time"] = datetime.now(timezone.utc).isoformat()
     merged["review_version"] = merged.get("review_version", review_version).fillna(review_version) if isinstance(merged.get("review_version"), pd.Series) else review_version
-    merged["schema_version"] = "0.3.0"
+    if "confidence_components" in merged.columns:
+        final_scores = []
+        for _, row in merged.iterrows():
+            if str(row.get("state_final", "")).lower() == "rejected":
+                final_scores.append(0.0)
+                continue
+            try:
+                components = json.loads(str(row.get("confidence_components", "{}")) or "{}")
+            except json.JSONDecodeError:
+                components = {}
+            components["manual_review"] = 1.0 if str(row.get("reviewed_state", "")) else components.get("manual_review", 0.5)
+            final_scores.append(compute_confidence_score(components, confidence_weights))
+        merged["confidence_score_final"] = final_scores
+        merged["confidence_level_final"] = np.where(
+            merged["confidence_score_final"] >= 0.75,
+            "high",
+            np.where(merged["confidence_score_final"] >= 0.50, "medium", "low"),
+        )
+    merged["schema_version"] = "0.4.0"
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     merged.to_file(output, driver="GPKG")
@@ -235,10 +255,14 @@ def apply_reviews(
 
     if lineage_path and Path(lineage_path).exists() and "row_type" in reviews.columns:
         lineage = gpd.read_file(lineage_path)
-        lineage_reviews = reviews[reviews["row_type"] == "lineage"][["event_id", "lineage_action", "notes"]].copy()
+        lineage_columns = [
+            column for column in ["event_id", "lineage_action", "notes", "reviewer", "review_time", "review_version"]
+            if column in reviews.columns
+        ]
+        lineage_reviews = reviews[reviews["row_type"] == "lineage"][lineage_columns].copy()
         lineage_out = lineage.merge(lineage_reviews, on="event_id", how="left")
         lineage_out["review_status"] = np.where(lineage_out["lineage_action"].fillna("") != "", "reviewed", lineage_out["review_status"])
         lineage_out["review_version"] = review_version
-        lineage_out["schema_version"] = "0.3.0"
+        lineage_out["schema_version"] = "0.4.0"
         lineage_out.to_file(output.with_name(output.stem + "_lineage.gpkg"), driver="GPKG")
     return output

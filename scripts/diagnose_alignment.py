@@ -7,6 +7,7 @@ from pathlib import Path
 from urban_monitor.alignment_diagnostics import diagnose_alignment, write_alignment_report
 from urban_monitor.config import load_config
 from urban_monitor.manifest import load_manifest
+from urban_monitor.outputs import prepare_output
 
 
 def main() -> None:
@@ -23,6 +24,8 @@ def main() -> None:
         max_dynamic_buffer_m=float(tracking.get("max_dynamic_buffer_m", 20.0)),
     )
     root = Path(cfg["output_root"])
+    prepare_output(root / "alignment_report.csv", force=args.force)
+    prepare_output(root / "alignment_report.md", force=args.force)
     write_alignment_report(report, root / "alignment_report.csv", root / "alignment_report.md")
     print(report.to_string(index=False))
 

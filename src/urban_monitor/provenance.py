@@ -45,12 +45,12 @@ def write_run_manifest(
     warnings: Iterable[str] = (),
     start_time: str = "",
     model_version: str = "",
-    schema_version: str = "0.3.0",
+    schema_version: str = "0.4.0",
     source_crs: str = "",
     analysis_crs: str = "",
     exchange_crs: str = "EPSG:4326",
 ) -> Path:
-    """Write the stable v0.3 run-provenance contract."""
+    """Write the stable run-provenance contract."""
     config = Path(config_path)
     inputs = [Path(value) for value in input_files]
     outputs = [Path(value) for value in output_files]

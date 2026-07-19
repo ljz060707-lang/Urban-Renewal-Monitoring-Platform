@@ -12,9 +12,11 @@ from urban_monitor.config import load_config
 from urban_monitor.manifest import load_manifest
 from urban_monitor.quality import geometry_quality_fraction
 from urban_monitor.tracking import assign_tracks, detect_lineage_events, summarize_tracks
+from urban_monitor.review import apply_reviews
+from urban_monitor.outputs import prepare_output
 
 
-def _manual_quality_overrides(review_csv: str | Path | None) -> dict[tuple[str, str], bool]:
+def _manual_quality_overrides(review_csv: str | Path | None) -> dict[tuple[str, str], str]:
     if not review_csv or not Path(review_csv).exists():
         return {}
     frame = pd.read_csv(review_csv, dtype=str).fillna("")
@@ -22,7 +24,7 @@ def _manual_quality_overrides(review_csv: str | Path | None) -> dict[tuple[str, 
         return {}
     if "row_type" in frame.columns:
         frame = frame[frame["row_type"] == "track"]
-    overrides: dict[tuple[str, str], bool] = {}
+    overrides: dict[tuple[str, str], str] = {}
     for _, row in frame.iterrows():
         track_id = str(row.get("track_id") or row.get("record_id") or "")
         try:
@@ -30,7 +32,7 @@ def _manual_quality_overrides(review_csv: str | Path | None) -> dict[tuple[str, 
         except json.JSONDecodeError:
             values = {}
         for date_value, quality in values.items():
-            overrides[(track_id, str(date_value))] = str(quality) == "usable"
+            overrides[(track_id, str(date_value))] = str(quality)
     return overrides
 
 
@@ -44,8 +46,12 @@ def main() -> None:
     by_date = {}
     crs = None
     for record in records:
-        regularized = Path(cfg["output_root"]) / "predictions_regularized" / f"{record.date}.gpkg"
-        path = regularized if regularized.exists() else Path(cfg["output_root"]) / "predictions" / f"{record.date}.gpkg"
+        candidates = [
+            Path(cfg["output_root"]) / "predictions" / "regularized" / f"{record.date}.gpkg",
+            Path(cfg["output_root"]) / "predictions_regularized" / f"{record.date}.gpkg",
+            Path(cfg["output_root"]) / "predictions" / f"{record.date}.gpkg",
+        ]
+        path = next((candidate for candidate in candidates if candidate.exists()), candidates[0])
         frame = gpd.read_file(path)
         crs = crs or frame.crs
         by_date[record.date] = frame
@@ -78,20 +84,31 @@ def main() -> None:
         merge_child_coverage=float(p.get("lineage", {}).get("min_counterpart_coverage", 0.25)),
         lineage_buffer_m=float(p.get("lineage", {}).get("buffer_m", 2.0)),
         ambiguity_margin_threshold=float(p.get("ambiguity_margin_threshold", 0.08)),
+        max_identity_area_ratio=float(p.get("max_identity_area_ratio", p.get("construction_area_ratio", 1.5))),
     )
     representative = {}
     for obs in observations:
         if obs.track_id not in representative or obs.score > representative[obs.track_id].score:
             representative[obs.track_id] = obs
-    usability = {}
+    observation_context = {}
     min_quality = float(p.get("min_quality_fraction", 0.8))
     for track_id, obs in representative.items():
         for record in records:
             observed = next((o for o in observations if o.track_id == track_id and o.date == record.date), None)
             geometry = observed.geometry if observed is not None else obs.geometry
             fraction = geometry_quality_fraction(record.quality_mask_path, geometry)
-            usability[(track_id, record.date)] = fraction >= min_quality
-    usability.update(_manual_quality_overrides(cfg.get("review", {}).get("review_csv")))
+            observation_context[(track_id, record.date)] = {
+                "usable_fraction": fraction,
+                "covered_fraction": 1.0,
+                "registration_status": record.registration_status if record.registration_status != "unchecked" else "passed",
+                "date_quality": "usable",
+            }
+    for key, quality in _manual_quality_overrides(cfg.get("review", {}).get("review_csv")).items():
+        observation_context.setdefault(key, {}).update(
+            date_quality=quality,
+            manual_review=True,
+            usable_fraction=1.0 if quality == "usable" else 0.0,
+        )
 
     long_gdf, intervals, summary = summarize_tracks(
         observations,
@@ -100,7 +117,12 @@ def main() -> None:
         isolated_gap_repair=bool(p["isolated_gap_repair"]),
         construction_area_ratio=float(p["construction_area_ratio"]),
         low_confidence_threshold=float(p["low_confidence_threshold"]),
-        usability=usability,
+        observation_context=observation_context,
+        min_quality_fraction=min_quality,
+        date_metadata=date_metadata,
+        confidence_weights=cfg.get("confidence", {}).get("weights"),
+        confidence_high_threshold=float(cfg.get("confidence", {}).get("high_threshold", 0.75)),
+        confidence_medium_threshold=float(cfg.get("confidence", {}).get("medium_threshold", 0.50)),
         max_soft_gap_epochs=int(p.get("max_soft_gap_epochs", p.get("max_track_gap", 1))),
         max_soft_gap_days=int(p.get("max_soft_gap_days", 800)),
         construction_gap_buffer_m=float(p.get("construction_gap_buffer_m", p.get("buffer_m", 4.0))),
@@ -137,6 +159,8 @@ def main() -> None:
 
     output = Path(cfg["output_root"]) / "tracking"
     output.mkdir(parents=True, exist_ok=True)
+    for name in ("tracks_long.gpkg", "tracks_summary.gpkg", "state_intervals.csv", "observation_matrix.csv", "lineage_events.gpkg", "lineage_events.csv"):
+        prepare_output(output / name, force=args.force)
     long_gdf.to_file(output / "tracks_long.gpkg", driver="GPKG")
     summary.to_file(output / "tracks_summary.gpkg", driver="GPKG")
     intervals.to_csv(output / "state_intervals.csv", index=False, encoding="utf-8-sig")
@@ -151,7 +175,18 @@ def main() -> None:
                 "n_parent", "n_child", "coverage", "review_status"
             ]
         ).to_csv(output / "lineage_events.csv", index=False, encoding="utf-8-sig")
-    print(summary[["track_id", "state", "confidence", "temporal_flag", "first_seen", "last_seen"]].to_string(index=False))
+    review_csv = cfg.get("review", {}).get("review_csv")
+    if review_csv and Path(review_csv).exists():
+        apply_reviews(
+            output / "tracks_summary.gpkg",
+            review_csv,
+            output / "tracks_reviewed.gpkg",
+            lineage_path=output / "lineage_events.gpkg" if (output / "lineage_events.gpkg").exists() else None,
+            review_version=str(cfg.get("review", {}).get("review_version", "0.4.0")),
+            confidence_weights=cfg.get("confidence", {}).get("weights"),
+        )
+    columns = [column for column in ["track_id", "state", "confidence", "temporal_flag", "first_seen", "last_seen"] if column in summary]
+    print(summary[columns].to_string(index=False) if columns else "No tracks produced")
 
 
 if __name__ == "__main__":

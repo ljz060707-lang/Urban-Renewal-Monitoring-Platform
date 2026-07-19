@@ -1,263 +1,166 @@
-# Urban Renewal Phase 1 Starter — v0.3 China Real-data Hardening Edition
+# 城市更新遥感监测平台
 
-A small-area, high-resolution, multi-temporal urban-renewal monitoring starter.
+把多期高分辨率影像和建筑 Ground Truth 放入指定文件夹，运行一条命令，即可训练建筑识别模型并生成跨期城市更新结果。
 
-The first phase is deliberately limited to a **reviewable high-resolution teacher system**:
-
-1. validate several 0.3–2 m images of one small AOI;
-2. train/fine-tune a building instance-segmentation teacher;
-3. regularize model masks into QGIS-friendly building polygons;
-4. match buildings through time with off-nadir-tolerant geometry metrics;
-5. detect `stable`, `new_building`, `demolished`, `construction_candidate`, and uncertain states;
-6. record many-to-one / one-to-many parent-child lineage;
-7. review object state, date-specific image quality, and lineage in a browser;
-8. export only MMU-qualified events as fractional 10 m labels for a later student model.
-
-This repository does **not** bundle satellite imagery, commercial data, third-party weights, or copied external repository code. It provides clean-room interfaces and a runnable local pipeline.
-
-## Why this phase comes first
-
-Do not begin with a nationwide end-to-end Sentinel temporal model. First create a reliable high-resolution object-time database in one AOI. The reviewed data then supports:
-
-- a second teacher such as RSBuilding;
-- a later ContUrbanCD-style temporal model;
-- robust lower-resolution label distillation;
-- defensible urban-renewal event statistics.
-
-## v0.3 hardening
-
-v0.3 keeps the v0.2 teacher/tracking/review interfaces and adds the trust boundaries needed for a real Chinese-city AOI:
-
-- preserve source CRS, select local UTM, and reject EPSG:4326/3857 metric work;
-- block GCJ-02, BD-09 and unknown vectors from training until verified conversion;
-- validate v0.3 schemas, Chinese paths and UTF-8 BOM CSV;
-- diagnose ground alignment separately from high-rise roof displacement;
-- compose manual > provider > RGB > default quality evidence;
-- record shape similarity, ambiguity, deterministic IDs and complex lineage;
-- preserve automatic results under review overlays with reviewer provenance;
-- emit MMU exclusions, fractional labels, GeoTIFF tags and honest evaluation states;
-- isolate every smoke run and record input hashes in `RUN_MANIFEST.json`.
-
-## V2 improvements
-
-The robust-tracking edition adds the safeguards required for real high-resolution imagery:
-
-- **off-nadir robustness:** raw IoU, buffered IoU, bounding-box IoU, centroid distance and area similarity are jointly weighted;
-- **dynamic displacement buffer:** optional `off_nadir_deg` metadata expands the matching tolerance when viewing angles differ;
-- **canonical tracking geometry:** a `tracking_geometry_wkt` or `canonical_geometry_wkt` field may override the visible roof geometry for matching;
-- **polygon regularization:** conservative simplification and orthogonalization before GPKG export;
-- **seasonal gap logic:** bounded missing runs are treated as possible vegetation/shadow occlusion rather than immediate demolition;
-- **construction transition logic:** a missing interval followed by a materially different geometry becomes `construction_candidate`;
-- **parent-child lineage:** explicit `merge_redevelopment` and `split_or_expansion` events; many-to-one children receive a new track ID;
-- **quality-mask generator:** conservative RGB heuristics plus human date-level quality override;
-- **enhanced review UI:** per-date `usable / unusable / occluded / registration_issue` controls and lineage confirmation;
-- **MMU filtering:** only sufficiently large and temporally dated events are exported to 10 m fractional labels.
-
-## Reference architecture
-
-- **ZAsolar pattern:** COCO export, Mask R-CNN fine-tuning, tiled inference, hard-negative review and GeoPackage output.
-- **solar_backdating pattern:** explicit usable/unusable observations, monotonicity checks and latest-absent / earliest-present intervals.
-- **RSBuilding:** optional external building/change teacher.
-- **ContUrbanCD:** phase-2 temporal feature model after local temporal labels are adequate.
-- **SpaceNet 7:** mask-to-polygon conversion, cross-date identity and temporal evaluation concepts.
-
-See `SOURCES_AND_ADAPTATION.md`, `GROUND_TRUTH_SPEC.md` and `PHASE1_IMPLEMENTATION.md`.
-
-## Data layout
+最短流程：
 
 ```text
-data/<aoi_id>/
-├── manifest.csv
-├── images/
-│   ├── 2022-04-01.tif
-│   └── ...
-├── labels/
-│   ├── 2022-04-01.gpkg
-│   └── ...
-└── quality/
-    ├── 2022-04-01.tif
-    └── ...
+数据：data/<aoi_id>/images/ 和 data/<aoi_id>/labels/
+安装：pip install -e ".[train]"
+运行：python run.py all --aoi beijing_demo
+结果：outputs/beijing_demo/latest.json 指向最新成功 run
 ```
 
-Recommended `manifest.csv`:
+不需要手写 manifest，也不需要逐个执行内部脚本。
 
-```csv
-date,image_path,label_path,quality_mask_path,split,source,off_nadir_deg,sun_elevation_deg,season,quality_notes
-2022-04-01,images/2022-04-01.tif,labels/2022-04-01.gpkg,quality/2022-04-01.tif,train,GF-2,6.2,51.0,spring,
-2023-08-01,images/2023-08-01.tif,labels/2023-08-01.gpkg,quality/2023-08-01.tif,train,WorldView-3,20.1,66.0,summer,thin haze in northwest
+## 1. 安装
+
+Windows PowerShell：
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e ".[train]"
 ```
 
-All images must use the same projected CRS, extent, pixel size, width and height.
-
-## Geometry policy
-
-Do not silently mix roof and ground-footprint definitions.
-
-Recommended two-geometry contract:
-
-- active `geometry`: the visible per-date roof/object polygon used for segmentation supervision;
-- optional `tracking_geometry_wkt`: a manually corrected canonical ground footprint or stable tracking anchor.
-
-When the optional canonical field exists, the tracker uses it for matching while retaining the observed roof geometry for visual review and per-date measurement.
-
-## Environment
-
-Recommended: Linux/WSL2, Python 3.10–3.11, CUDA GPU with at least 12 GB VRAM.
+Linux / WSL：
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+pip install -e ".[train]"
+```
+
+CPU 环境可直接使用上面的命令。需要 CUDA 时，先按 [PyTorch 官方安装页面](https://pytorch.org/get-started/locally/) 安装与本机 CUDA 匹配的 Torch/torchvision，再执行：
+
+```bash
 pip install -e .
+pip install tqdm tensorboard
+pip install -e ".[train]" --no-deps
 ```
 
-## Full smoke test
+这样不会用通用 wheel 覆盖已经安装的 CUDA Torch。本项目不要求 Conda，也不把 Docker 作为唯一运行方式。
 
-```bash
-python scripts/run_phase1_smoke.py --config configs/example.yaml
-```
+## 2. 放入数据
 
-The unified command is CPU-only and does not import Torch or download weights. It writes `outputs/<aoi_id>/runs/<run_id>/`. The legacy step-by-step commands remain compatible:
-
-```bash
-python scripts/make_synthetic_example.py --output data/example/demo_aoi
-python scripts/validate_alignment.py --config configs/example.yaml
-python scripts/build_coco.py --config configs/example.yaml
-python scripts/make_mock_predictions.py --config configs/example.yaml
-python scripts/regularize_predictions.py --config configs/example.yaml
-python scripts/track_states.py --config configs/example.yaml
-python scripts/build_review_queue.py --config configs/example.yaml
-python scripts/export_student_labels.py --config configs/example.yaml
-```
-
-The synthetic example contains an off-nadir roof shift and a two-buildings-to-one redevelopment event.
-
-Open:
+只要求 `images` 和 `labels` 两个目录：
 
 ```text
-outputs/demo_aoi/review/index.html
+data/beijing_demo/
+├── images/
+│   ├── 2022-04-01.tif
+│   ├── 2023-04-01.tif
+│   └── 2024-04-01.tif
+└── labels/
+    ├── 2022-04-01.gpkg
+    ├── 2023-04-01.gpkg
+    └── 2024-04-01.gpkg
 ```
 
-## Real-data workflow
+- 影像和标签必须使用相同日期命名。
+- 日期支持 `YYYY-MM-DD`、`YYYY_MM_DD`、`YYYYMMDD`。
+- 影像支持 GeoTIFF；标签支持 GPKG、GeoJSON、Shapefile，推荐 GPKG。
+- 标签可以只有 geometry，系统自动补齐训练字段。
+- 影像和标签必须带真实 CRS。
+- 不要把高德 GCJ-02 或百度 BD-09 图层直接当作 WGS84 Ground Truth。
+- 同一天有多个影像或多个标签时，系统会列出冲突文件并停止。
 
-### 1. Validate alignment
+可选的 `data/<aoi_id>/project.yaml` 只用于覆盖默认值。例如：
+
+```yaml
+project:
+  name: 北京示例片区
+
+data:
+  rgb_bands: [1, 2, 3]
+
+training:
+  epochs: 30
+```
+
+不写 `project.yaml` 也能运行。默认不下载预训练权重，使用随机初始化；如需预训练权重，请在项目配置中显式设置。
+
+## 3. 检查环境
 
 ```bash
-python scripts/validate_alignment.py --config configs/phase1.yaml
+python run.py doctor
 ```
 
-Inspect difficult high-rise zones manually even when ground roads align. Ground registration does not guarantee roof alignment across viewing angles.
+命令会检查 Python、Torch、Torchvision、CUDA、Rasterio、GeoPandas、Shapely、OpenCV、中文路径、写权限和磁盘空间。异常时会给出缺失项和安装命令。
 
-### 2. Generate or import quality masks
+## 4. 一键训练
 
 ```bash
-python scripts/generate_quality_masks.py --config configs/phase1.yaml --update-manifest
+python run.py all --aoi beijing_demo
 ```
 
-The generated mask is conservative and should be combined with provider QA and manual review.
+系统依次完成环境检查、文件发现、manifest、CRS/对齐、GT 校验、空间划分、切片、COCO、训练、验证、完整影像推理、tracking、lineage、review 页面和报告。
 
-### 3. Export COCO and train
+流程失败会立即停止并返回非零退出码。失败 run 会保留错误阶段和 traceback，但不会更新 `latest.json`。
 
-```bash
-python scripts/build_coco.py --config configs/phase1.yaml
-python scripts/train_teacher.py --config configs/phase1.yaml
-```
+## 5. 查看结果
 
-### 4. Infer and regularize polygons
-
-```bash
-python scripts/infer_timeseries.py --config configs/phase1.yaml
-```
-
-Regularization is integrated into inference. To process pre-existing predictions separately:
-
-```bash
-python scripts/regularize_predictions.py --config configs/phase1.yaml
-```
-
-### 5. Track, infer states and detect lineage
-
-```bash
-python scripts/track_states.py --config configs/phase1.yaml
-```
-
-Outputs include:
+先打开：
 
 ```text
-tracking/tracks_long.gpkg
-tracking/tracks_summary.gpkg
-tracking/state_intervals.csv
-tracking/lineage_events.gpkg
-tracking/lineage_events.csv
+outputs/beijing_demo/latest.json
 ```
 
-### 6. Human review
+其中 `run_directory` 指向本次完整结果。常用文件：
+
+```text
+training/checkpoints/best.pth
+training/checkpoints/last.pth
+evaluation/evaluation_summary.md
+evaluation/metrics.json
+predictions/
+tracking/
+review/index.html
+reports/PREFLIGHT_REPORT.md
+RUN_MANIFEST.json
+```
+
+验证与完整影像推理默认都使用 `best.pth`，不会自动改用 `last.pth`。
+
+## 6. 常用命令
 
 ```bash
-python scripts/build_review_queue.py --config configs/phase1.yaml
+python run.py doctor
+python run.py prepare --aoi beijing_demo
+python run.py train --aoi beijing_demo
+python run.py train --aoi beijing_demo --resume
+python run.py predict --aoi beijing_demo
+python run.py all --aoi beijing_demo --force
+python run.py demo
 ```
 
-The page allows:
+- 输入未变化时会显示 `reused`。
+- 标签变化会重做 GT、split、tiling 和 COCO。
+- 训练配置变化会重训。
+- 只改推理阈值不会重训。
+- `--force` 强制重算对应完整流程。
 
-- final track-state selection;
-- date-specific image-quality overrides;
-- explicit confirmation/rejection of merge/split lineage;
-- notes for geometry edits and roof/footprint inconsistency.
+## 7. 常见错误
 
-Save the exported CSV at `review.review_csv`, then run:
+- **CRS 缺失**：在 QGIS 中确认真实 CRS 后重新导出，不要随意“指定为 WGS84”。
+- **日期不对应**：检查影像与标签的文件名；日期必须一一对应。
+- **标签不在影像范围**：检查 CRS、坐标单位和标注位置；完全在外的对象会被拒收。
+- **CUDA 内存不足**：减小 `training.batch_size` 或 `tiling.tile_size`，再使用 `--resume`。
+- **没有安装 Torch**：执行 `pip install -e ".[train]"`；CUDA 用户按上面的官方步骤安装。
+- **GCJ-02 / BD-09**：高德、百度坐标不能直接作为正式训练坐标。
+- **Windows 中文路径**：项目已测试 UTF-8 中文路径；若第三方 GDAL 环境仍失败，先缩短路径并运行 `doctor`。
+- **验证集对象过少**：系统会 warning；不能把训练集结果冒充验证指标，应扩大 AOI 或增加标注。
 
-```bash
-python scripts/apply_reviews.py --config configs/phase1.yaml
-```
+## 8. 数据要求
 
-To make reviewed date-quality flags affect state inference, rerun `track_states.py` after saving the review CSV.
+- 建议 0.3—2 m GeoTIFF；
+- Polygon / MultiPolygon 建筑 Ground Truth；
+- 建议 3—8 期影像；
+- 默认训练 `building`；
+- 建议按影像中可见屋顶边界标注；
+- courtyard、interior rings 和 MultiPolygon 会保留；
+- 点、线、空几何、无法修复对象和影像外对象会进入 rejected 报告。
 
-### 7. Export later student labels
-
-```bash
-python scripts/export_student_labels.py --config configs/phase1.yaml
-```
-
-Only events above `student_export.min_mapping_unit_m2` and with a defensible transition date are exported. Output bands are:
-
-1. `new_fraction`
-2. `demolition_fraction`
-3. `construction_fraction`
-4. `any_change_fraction`
-
-## Initial operational states
-
-- `stable`: persists through the usable sequence;
-- `new_building`: absent before, then persists for the required number of usable dates;
-- `demolished`: present before, then remains absent for the required number of usable dates;
-- `construction_candidate`: strong area/geometry transition or a repaired non-monotonic gap with materially different pre/post geometry;
-- `uncertain`: unresolved non-monotonicity, poor quality, low confidence or incompatible geometry.
-
-A separate `temporal_flag` records `seasonal_occlusion_or_shadow`, `nonmonotonic_redevelopment_transition`, or other review priorities.
-
-## Tests
-
-```bash
-PYTHONPATH=src pytest -q
-```
-
-The current tests cover interval inference, off-nadir displacement, seasonal gap repair, construction transitions, merge lineage and polygon regularization.
-
-The v0.3 suite additionally covers schema, CRS, coordinate encodings, Chinese paths, alignment diagnostics, mask priority, geometry preservation, ambiguity, deterministic IDs, complex lineage, review idempotency, MMU boundaries, fractional labels and evaluation behavior.
-
-## First real Chinese-city AOI
-
-1. Create `data/<ascii_aoi_id>/images`, `labels`, and optional `quality` folders.
-2. Place 3–8 legally obtained 0.3–2 m GeoTIFF/COG orthophotos in `images`.
-3. Inspect the true CRS of every image; never assign EPSG:4326 merely to silence missing metadata.
-4. Create a v0.3 `manifest.csv` using `configs/phase1.yaml` and `GROUND_TRUTH_SPEC.md`.
-5. Run `validate_schemas.py`, `validate_crs.py`, and `diagnose_alignment.py` with the AOI config.
-6. Select a near-nadir, well-covered reference grid and reproject working copies; preserve originals.
-7. Generate/combine provider, manual and RGB quality evidence.
-8. Draw or correct visible-roof Ground Truth in QGIS and record `geometry_role`.
-9. Export COCO; install the optional Torch stack and train only after reviewing data/weight rights.
-10. Infer, regularize, track, detect lineage and infer states.
-11. Open `review/index.html`, enter reviewer ID, review state/date quality/lineage, and export CSV.
-12. Correct geometry in QGIS, apply review overlays, rerun tracking/state, export MMU fractions and evaluate.
-
-GCJ-02/BD-09 web maps may be visual references only. Their coordinates cannot enter formal training or metric analysis without a separately verified, versioned conversion.
+技术细节、字段、空间划分、置信度、追踪与 provenance 见 [docs/TECHNICAL_REFERENCE.md](docs/TECHNICAL_REFERENCE.md)、[GROUND_TRUTH_SPEC.md](GROUND_TRUTH_SPEC.md) 和 [docs/CONFIDENCE_MODEL.md](docs/CONFIDENCE_MODEL.md)。

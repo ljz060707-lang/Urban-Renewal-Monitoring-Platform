@@ -7,6 +7,7 @@ from pathlib import Path
 from urban_monitor.coco import build_coco
 from urban_monitor.config import load_config
 from urban_monitor.manifest import load_manifest
+from urban_monitor.outputs import prepare_output
 
 
 def main() -> None:
@@ -17,6 +18,7 @@ def main() -> None:
     cfg = load_config(args.config)
     records = [r for r in load_manifest(cfg["manifest"], cfg["data_root"]) if r.split in {"train", "val"}]
     output = Path(cfg["output_root"]) / "coco"
+    prepare_output(output / "annotations.json", force=args.force)
     stats = build_coco(
         records,
         output,

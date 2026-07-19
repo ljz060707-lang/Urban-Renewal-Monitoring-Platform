@@ -9,6 +9,7 @@ import geopandas as gpd
 from urban_monitor.config import load_config
 from urban_monitor.inference import regularize_prediction_frame
 from urban_monitor.manifest import load_manifest
+from urban_monitor.outputs import prepare_output
 
 
 def main() -> None:
@@ -26,7 +27,7 @@ def main() -> None:
         src_path = input_dir / f"{record.date}.gpkg"
         frame = gpd.read_file(src_path)
         result = regularize_prediction_frame(frame, cfg.get("regularization", {}))
-        dst_path = output_dir / f"{record.date}.gpkg"
+        dst_path = prepare_output(output_dir / f"{record.date}.gpkg", force=args.force)
         result.to_file(dst_path, driver="GPKG")
         print(dst_path)
 

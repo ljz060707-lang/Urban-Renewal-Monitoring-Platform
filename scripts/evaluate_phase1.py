@@ -7,6 +7,7 @@ from pathlib import Path
 from urban_monitor.config import load_config
 from urban_monitor.evaluation import evaluate_phase1
 from urban_monitor.manifest import load_manifest
+from urban_monitor.outputs import prepare_output
 
 
 def main() -> None:
@@ -15,6 +16,8 @@ def main() -> None:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
     cfg = load_config(args.config)
+    prepare_output(Path(cfg["output_root"]) / "evaluation_summary.json", force=args.force)
+    prepare_output(Path(cfg["output_root"]) / "evaluation_summary.md", force=args.force)
     records = load_manifest(cfg["manifest"], cfg["data_root"])
     regularized = Path(cfg["output_root"]) / "predictions_regularized"
     predictions = {record.date: regularized / f"{record.date}.gpkg" for record in records}

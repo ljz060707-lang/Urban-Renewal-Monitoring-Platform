@@ -1,98 +1,111 @@
-# Ground-truth and review specification
+# Ground Truth 规范（v0.4.0）
 
-## 1. Annotation unit
+## 1. 最低要求
 
-The primary annotation unit is a building object at one acquisition date. The temporal unit is a track or lineage event.
+每个日期准备一个带真实 CRS 的 GPKG、GeoJSON 或 Shapefile。最低可只有 geometry：
 
-## 2. Required GPKG fields
+```text
+geometry
+```
 
-| Field | Type | Rule |
-|---|---|---|
-| `object_id` | string | Persistent manual ID when known; blank allowed before temporal review |
-| `class_name` | string | Initially `building`; avoid forcing construction into the completed-building class |
-| `geometry_role` | string | `visible_roof`, `ground_footprint`, or `canonical_tracking_anchor` |
-| `review_status` | string | `draft`, `reviewed`, `rejected` |
-| `source_date` | date/string | Acquisition date |
-| `notes` | string | Shadow, canopy, off-nadir or ambiguity notes |
-| `tracking_geometry_wkt` | string, optional | Canonical geometry used for matching |
-| `source_image` | string | Source image or manifest reference |
-| `model_version` | string | Model/checkpoint identity |
-| `schema_version` | string | `0.3.0` for this release |
-| `coordinate_encoding` | string | `wgs84`, `cgcs2000`, `projected`, `gcj02`, `bd09`, or `unknown` |
+geometry 必须是 Polygon 或 MultiPolygon。推荐标注影像中实际可见的屋顶边界，不要把阴影、树木、脚手架、吊车或停车场并入完成建筑。
 
-## 3. Visible roof versus footprint
+## 2. 自动补齐字段
 
-Use `visible_roof` as the default segmentation target when the image is oblique. Do not invent a ground footprint by shifting the roof without defensible height/view geometry.
+geometry-only 文件在 prepare 时自动补齐：
 
-Create a canonical tracking anchor when:
+| 字段 | 默认值 |
+|---|---|
+| `class_name` | `building` |
+| `geometry_role` | `visible_roof` |
+| `review_status` | `reviewed` |
+| `source_date` | 从文件名解析 |
+| `object_id` | 日期与规范化几何的稳定 SHA-1 ID |
+| `schema_version` | `0.4.0` |
+| `coordinate_encoding` | 根据分析 CRS 为 `projected` 或 `wgs84` |
+| `notes` | 空字符串 |
+| `tracking_geometry_wkt` | 空字符串 |
 
-- the building is tall;
-- roof displacement changes substantially between dates;
-- raw roof polygons have little overlap despite obvious identity;
-- a trusted cadastral/footprint source exists.
+自动 ID 在相同日期、相同标准化几何下可复现。
 
-## 4. Completed building
+## 3. 字段别名
 
-Include the permanent roof/object surface. Exclude:
+- `class`、`label`、`category`、`类别`、`类型` → `class_name`；
+- `date`、`time`、`日期`、`影像日期` → `source_date`；
+- `id`、`fid`、`ID`、`编号` → `object_id`。
 
-- cast shadows;
-- vegetation;
-- temporary coverings;
-- cranes and scaffolding;
-- adjacent parking or hardscape.
+每个文件实际采用的映射写入 `data_report/field_mapping.json`，不会静默转换。属性中的日期若与文件名日期不一致会停止。
 
-## 5. Construction
+## 4. 类别
 
-During Phase 1, do not force excavation or scaffolding into a completed-building mask. Mark the temporal object as `construction_candidate` and describe the visual evidence. A dedicated construction/bare-ground branch can be trained later.
+默认只训练 `building`。可在 `project.yaml` 中覆盖：
 
-## 6. Demolition
+```yaml
+data:
+  classes: [building]
+```
 
-Confirm demolition only when:
+未选类别进入 rejected 报告，不进入 COCO。
 
-- the image is usable at the object location;
-- the prior building position is visible;
-- absence persists or is corroborated by a later date;
-- the result is not explained by registration shift, tree canopy, shadow or missing coverage.
+## 5. 几何处理
 
-## 7. Merge/redevelopment
+处理顺序：
 
-For several old buildings replaced by a larger new object:
+1. 拒绝缺失 CRS；
+2. 重投影工作副本到分析 CRS；
+3. 空几何、点、线进入 `rejected_labels.gpkg`；
+4. 无效 Polygon/MultiPolygon 先 `make_valid`；
+5. 修复后仍无 polygonal geometry 的对象进入 rejected；
+6. 完全在影像外的对象进入 rejected；
+7. 部分超范围对象裁剪到影像范围并记录 `clipped_to_image`；
+8. 小于 `data.min_building_area_m2` 的对象进入 `filtered_small_objects.gpkg`；
+9. 其余对象进入 `accepted_labels.gpkg` 和 prepared 日期标签。
 
-- retain each old parent track to its last valid observation;
-- create/retain the child track;
-- confirm a `merge_redevelopment` lineage event;
-- do not arbitrarily assign the child as the continuing identity of only one parent in analytical outputs.
+MultiPolygon 的所有部分都会保留；courtyard 和 interior rings 不会被静默移除。COCO 使用 RLE mask 表达 holes。
 
-## 8. Split/partial reconstruction
+## 6. 屋顶与地面 footprint
 
-For one old building becoming several new objects or a partially retained footprint:
+- `visible_roof`：默认分割监督目标；
+- `ground_footprint`：有可信地籍或人工依据时使用；
+- `canonical_tracking_anchor`：仅用于跨日期身份匹配。
 
-- retain observed child tracks;
-- confirm or reject the proposed lineage;
-- note whether the event is physical change or segmentation correction.
+可在 `tracking_geometry_wkt` 放入可信 canonical geometry。不要只因影像倾斜就猜测地面 footprint。
 
-## 9. Date-quality review
+## 7. 审核与缺失证据
 
-Per object and date, select:
+日期级审核支持：
 
-- `usable`: absence/presence may support temporal inference;
-- `unusable`: no valid judgment;
-- `occluded`: canopy/shadow obstruction;
-- `registration_issue`: object location cannot be compared reliably.
+- `usable`；
+- `unusable`；
+- `occluded`；
+- `registration_issue`。
 
-Only `usable` dates count as valid absence evidence.
+只有 `present` 和满足覆盖、可用比例、配准与无歧义条件的 `usable_absent` 能进入状态推断。其他未检测不能作为拆除或新建证据。
 
-## 10. Holdout discipline
+轨迹最终状态优先级：
 
-Keep at least one spatial block untouched by hard-negative mining and iterative geometry correction. Report both building segmentation performance and event-level new/demolition precision on this block.
+```text
+state_final > reviewed_state > state
+```
 
-## 11. China coordinate encodings
+`rejected` 轨迹绝不进入学生标签。
 
-- Formal satellite/orthophoto geometry follows its file CRS.
-- `gcj02`, `bd09`, and `unknown` annotation geometry is review-only until a verified conversion is recorded.
-- Never use `set_crs("EPSG:4326")` to disguise GCJ-02 or BD-09 as WGS84.
-- Preserve conversion method, version and timestamp as provenance.
+## 8. 坐标安全
 
-## 12. Review overlay fields
+- 原始文件 CRS 保留不变；
+- 分析使用自动选择的本地 WGS84 UTM；
+- 交换副本使用 EPSG:4326；
+- 网页显示可使用 EPSG:3857。
 
-Review CSV/GPKG overlays support `reviewer`, `review_time`, `review_version`, Chinese `notes`, date-level quality JSON and lineage actions. Automatic `state`, confidence and geometry remain unchanged; the effective reviewed decision is written as `state_final`.
+GCJ-02、BD-09 或 unknown 坐标只能作为 review 参考，完成可验证转换并记录 provenance 前不得进入训练或正式面积/距离计算。
+
+## 9. 输出报告
+
+```text
+outputs/<aoi_id>/runs/<run_id>/data_report/
+├── accepted_labels.gpkg
+├── rejected_labels.gpkg
+├── filtered_small_objects.gpkg
+├── field_mapping.json
+└── label_validation_report.md
+```

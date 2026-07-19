@@ -63,7 +63,7 @@ def _required_outputs(run_dir: Path) -> list[Path]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the complete CPU-only v0.3 synthetic workflow.")
+    parser = argparse.ArgumentParser(description="Run the legacy-compatible CPU-only synthetic workflow.")
     parser.add_argument("--config", default="configs/example.yaml", help="Base configuration to copy into the run")
     parser.add_argument("--output-root", default="outputs", help="Parent output directory")
     parser.add_argument("--run-id", default=None)

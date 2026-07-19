@@ -9,6 +9,7 @@ import pandas as pd
 from urban_monitor.config import load_config
 from urban_monitor.manifest import load_manifest
 from urban_monitor.quality import compose_quality_masks, generate_quality_mask
+from urban_monitor.outputs import prepare_output
 
 
 def main() -> None:
@@ -27,7 +28,7 @@ def main() -> None:
     for record in records:
         rgb = record.quality_mask_path
         if rgb is None or not rgb.exists():
-            rgb = rgb_root / f"{record.date}.tif"
+            rgb = prepare_output(rgb_root / f"{record.date}.tif", force=args.force)
             generate_quality_mask(
                 record.image_path,
                 rgb,
@@ -39,7 +40,7 @@ def main() -> None:
                 min_laplacian_variance=float(q.get("min_laplacian_variance", 0.0)),
                 min_global_dynamic_range=float(q.get("min_global_dynamic_range", 12.0)),
             )
-        target = composite_root / f"{record.date}.tif"
+        target = prepare_output(composite_root / f"{record.date}.tif", force=args.force)
         compose_quality_masks(
             record.image_path,
             target,

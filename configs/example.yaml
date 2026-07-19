@@ -1,7 +1,7 @@
 project:
   name: urban-renewal-phase1
-  version: "0.3.0"
-  schema_version: "0.3.0"
+  version: "0.4.0"
+  schema_version: "0.4.0"
 aoi:
   aoi_id: demo_aoi
   aoi_name_cn: 北京合成示例片区
@@ -12,7 +12,7 @@ data_root: data/example/demo_aoi
 manifest: data/example/demo_aoi/manifest.csv
 output_root: outputs/demo_aoi
 seed: 42
-model_version: mock-v3
+model_version: mock-v4
 crs:
   source_policy: preserve
   analysis_strategy: local_utm
@@ -99,7 +99,7 @@ review:
   chip_padding_m: 25.0
   allow_chinese_notes: true
   preserve_auto_results: true
-  review_version: "0.3.0"
+  review_version: "0.4.0"
 student_export:
   target_resolution_m: 10.0
   min_mapping_unit_m2: 200.0

@@ -7,6 +7,7 @@ from pathlib import Path
 from urban_monitor.config import load_config
 from urban_monitor.downscale import export_student_change_labels
 from urban_monitor.manifest import load_manifest
+from urban_monitor.outputs import prepare_output
 
 
 def main() -> None:
@@ -17,8 +18,13 @@ def main() -> None:
     cfg = load_config(args.config)
     records = load_manifest(cfg["manifest"], cfg["data_root"])
     d = cfg.get("student_export", {})
+    prepare_output(Path(cfg["output_root"]) / "student_labels" / "label_inventory.csv", force=args.force)
+    tracking_dir = Path(cfg["output_root"]) / "tracking"
+    reviewed = tracking_dir / "tracks_reviewed.gpkg"
+    summary = reviewed if reviewed.exists() else tracking_dir / "tracks_summary.gpkg"
+    print(f"student_export_source={'reviewed' if reviewed.exists() else 'auto'}:{summary}")
     outputs = export_student_change_labels(
-        Path(cfg["output_root"]) / "tracking" / "tracks_summary.gpkg",
+        summary,
         Path(cfg["output_root"]) / "tracking" / "state_intervals.csv",
         records[0].image_path,
         Path(cfg["output_root"]) / "student_labels",
@@ -28,7 +34,7 @@ def main() -> None:
         min_fraction_to_keep=float(d.get("min_fraction_to_keep", 0.05)),
         require_reviewed_or_high_confidence=bool(d.get("require_reviewed_or_high_confidence", True)),
         model_version=str(cfg.get("model_version", "")),
-        schema_version=str(cfg.get("project", {}).get("schema_version", "0.3.0")),
+        schema_version=str(cfg.get("project", {}).get("schema_version", "0.4.0")),
         source_aoi=str(cfg.get("aoi_id", "")),
     )
     for path in outputs:

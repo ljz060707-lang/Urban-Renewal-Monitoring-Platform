@@ -11,7 +11,7 @@ from .coordinate_encoding import validate_coordinate_encoding
 from .crs import validate_source_crs
 
 
-SCHEMA_VERSION = "0.3.0"
+SCHEMA_VERSION = "0.4.0"
 MANIFEST_V030_COLUMNS = {
     "date", "image_path", "quality_mask_path", "provider_mask_path", "manual_mask_path",
     "sensor", "source", "gsd_m", "off_nadir_deg", "sun_elevation_deg", "season", "crs",
@@ -101,8 +101,16 @@ def validate_tracking_schema(frame: pd.DataFrame) -> list[str]:
 
 
 def validate_observation_schema(frame: pd.DataFrame) -> list[str]:
-    _require_columns(frame, {"track_id", "date", "usable", "present", "registration_status"}, "observation")
+    _require_columns(
+        frame,
+        {"track_id", "date", "observation_status", "present", "usable_fraction", "covered_fraction", "registration_status"},
+        "observation",
+    )
     _validate_dates(frame["date"].astype(str).str[:10], "observation")
+    allowed = {"present", "usable_absent", "not_detected", "unusable", "occluded", "registration_issue", "not_covered", "ambiguous"}
+    invalid = set(frame["observation_status"].astype(str)) - allowed
+    if invalid:
+        raise ValueError(f"observation has invalid observation_status: {sorted(invalid)}")
     return []
 
 

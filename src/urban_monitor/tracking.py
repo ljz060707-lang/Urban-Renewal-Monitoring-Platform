@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 import hashlib
+import json
 from typing import Any
 
 import geopandas as gpd
@@ -11,9 +12,11 @@ import pandas as pd
 from scipy.optimize import linear_sum_assignment
 from shapely.geometry.base import BaseGeometry
 from shapely import wkt
+from shapely.strtree import STRtree
 from shapely.ops import unary_union
 
 from .crs import ensure_metric_crs, ensure_same_crs
+from .config import DEFAULT_CONFIG
 
 from .geometry import (
     area_similarity,
@@ -42,6 +45,10 @@ class Observation:
     match_area_similarity: float = 0.0
     match_shape_similarity: float = 0.0
     match_margin: float = 1.0
+    current_margin: float = 1.0
+    previous_margin: float = 1.0
+    match_score: float = 0.0
+    match_status: str = "new_track"
     match_ambiguous: bool = False
     lineage_parent_candidates: str = ""
 
@@ -117,14 +124,21 @@ def _match(
     max_dynamic_buffer_m: float,
     weights: dict[str, float],
     ambiguity_margin_threshold: float,
+    max_identity_area_ratio: float = 2.0,
 ):
     if not prev or not curr:
         return []
-    cost = np.full((len(prev), len(curr)), 1e6, dtype=float)
     metrics_cache: dict[tuple[int, int], dict[str, float]] = {}
     weight_sum = max(sum(max(float(v), 0.0) for v in weights.values()), 1e-9)
-    for i, a in enumerate(prev):
-        for j, b in enumerate(curr):
+    prev_geometries = [item.tracking_geometry or item.geometry for item in prev]
+    tree = STRtree(prev_geometries)
+    adjacency: dict[tuple[str, int], set[tuple[str, int]]] = {}
+    similarities: dict[tuple[int, int], float] = {}
+    for j, b in enumerate(curr):
+        search_geometry = (b.tracking_geometry or b.geometry).buffer(max_distance)
+        for i_value in tree.query(search_geometry, predicate="intersects"):
+            i = int(i_value)
+            a = prev[i]
             pair_buffer_m = _dynamic_buffer(
                 a.date,
                 b.date,
@@ -135,14 +149,14 @@ def _match(
             )
             metrics = _pair_metrics(a, b, buffer_m=pair_buffer_m, max_distance=max_distance)
             metrics["buffer_m"] = pair_buffer_m
-            metrics_cache[(i, j)] = metrics
-            gate = (
-                metrics["iou"] >= min_iou
-                or metrics["buffer_iou"] >= min_buffer_iou
-                or metrics["bbox_iou"] >= min_bbox_iou
-                or metrics["distance"] <= max_distance
+            area_ratio = 1.0 / max(metrics["area_similarity"], 1e-12)
+            metrics["area_ratio"] = area_ratio
+            spatial_gate = (
+                (metrics["iou"] > 0 and metrics["iou"] >= min_iou)
+                or (metrics["buffer_iou"] > 0 and metrics["buffer_iou"] >= min_buffer_iou)
+                or (metrics["bbox_iou"] > 0 and metrics["bbox_iou"] >= min_bbox_iou)
             )
-            if not gate:
+            if metrics["distance"] > max_distance or not spatial_gate or area_ratio > max_identity_area_ratio:
                 continue
             similarity = (
                 float(weights.get("iou", 0.15)) * metrics["iou"]
@@ -152,20 +166,59 @@ def _match(
                 + float(weights.get("area", 0.10)) * metrics["area_similarity"]
                 + float(weights.get("shape", 0.0)) * metrics["shape_similarity"]
             ) / weight_sum
-            cost[i, j] = 1.0 - similarity
-    for j in range(len(curr)):
-        similarities = sorted((1.0 - cost[i, j] for i in range(len(prev)) if cost[i, j] < 1e5), reverse=True)
-        margin = similarities[0] - similarities[1] if len(similarities) > 1 else 1.0
-        for i in range(len(prev)):
+            metrics_cache[(i, j)] = metrics
+            similarities[(i, j)] = similarity
+            adjacency.setdefault(("p", i), set()).add(("c", j))
+            adjacency.setdefault(("c", j), set()).add(("p", i))
+    by_current: dict[int, list[float]] = {}
+    by_previous: dict[int, list[float]] = {}
+    for (i, j), similarity in similarities.items():
+        by_current.setdefault(j, []).append(similarity)
+        by_previous.setdefault(i, []).append(similarity)
+    for values in by_current.values():
+        values.sort(reverse=True)
+    for values in by_previous.values():
+        values.sort(reverse=True)
+    for (i, j), similarity in similarities.items():
+        current_scores = by_current[j]
+        previous_scores = by_previous[i]
+        current_margin = current_scores[0] - current_scores[1] if len(current_scores) > 1 else 1.0
+        previous_margin = previous_scores[0] - previous_scores[1] if len(previous_scores) > 1 else 1.0
+        margin = min(current_margin, previous_margin)
+        metrics_cache[(i, j)].update(
+            similarity=similarity,
+            current_margin=float(current_margin),
+            previous_margin=float(previous_margin),
+            ambiguity_margin=float(margin),
+            ambiguous=float(margin < ambiguity_margin_threshold),
+        )
+    matches = []
+    seen: set[tuple[str, int]] = set()
+    for start in sorted(adjacency):
+        if start in seen:
+            continue
+        stack = [start]
+        component: set[tuple[str, int]] = set()
+        while stack:
+            node = stack.pop()
+            if node in component:
+                continue
+            component.add(node)
+            stack.extend(adjacency.get(node, set()) - component)
+        seen.update(component)
+        previous_indices = sorted(index for side, index in component if side == "p")
+        current_indices = sorted(index for side, index in component if side == "c")
+        cost = np.full((len(previous_indices), len(current_indices)), 1e6, dtype=float)
+        for row_index, previous_index in enumerate(previous_indices):
+            for column_index, current_index in enumerate(current_indices):
+                if (previous_index, current_index) in similarities:
+                    cost[row_index, column_index] = 1.0 - similarities[(previous_index, current_index)]
+        rows, columns = linear_sum_assignment(cost)
+        for row_index, column_index in zip(rows, columns):
+            i, j = previous_indices[int(row_index)], current_indices[int(column_index)]
             if (i, j) in metrics_cache:
-                metrics_cache[(i, j)]["ambiguity_margin"] = float(margin)
-                metrics_cache[(i, j)]["ambiguous"] = float(margin < ambiguity_margin_threshold)
-    rows, cols = linear_sum_assignment(cost)
-    return [
-        (int(i), int(j), metrics_cache[(int(i), int(j))])
-        for i, j in zip(rows, cols)
-        if cost[i, j] < 1e5
-    ]
+                matches.append((i, j, metrics_cache[(i, j)]))
+    return matches
 
 
 def _forced_merge_children(
@@ -178,11 +231,16 @@ def _forced_merge_children(
     buffer_m: float,
 ) -> dict[int, list[str]]:
     forced: dict[int, list[str]] = {}
+    if not previous:
+        return forced
+    previous_geometries = [(parent.tracking_geometry or parent.geometry).buffer(buffer_m) for parent in previous]
+    tree = STRtree(previous_geometries)
     for j, child in enumerate(current):
         child_geom = (child.tracking_geometry or child.geometry).buffer(buffer_m)
         parents: list[Observation] = []
-        for parent in previous:
-            parent_geom = (parent.tracking_geometry or parent.geometry).buffer(buffer_m)
+        for index_value in tree.query(child_geom, predicate="intersects"):
+            parent = previous[int(index_value)]
+            parent_geom = previous_geometries[int(index_value)]
             if intersection_over_area(parent_geom, child_geom, denominator="first") >= component_overlap:
                 parents.append(parent)
         parent_ids = sorted({p.track_id for p in parents if p.track_id})
@@ -216,6 +274,7 @@ def assign_tracks(
     merge_child_coverage: float = 0.25,
     lineage_buffer_m: float = 2.0,
     ambiguity_margin_threshold: float = 0.08,
+    max_identity_area_ratio: float = 2.0,
 ) -> list[Observation]:
     """Assign persistent IDs with off-nadir-tolerant geometry matching.
 
@@ -294,6 +353,7 @@ def assign_tracks(
             max_dynamic_buffer_m=max_dynamic_buffer_m,
             weights=weights,
             ambiguity_margin_threshold=ambiguity_margin_threshold,
+            max_identity_area_ratio=max_identity_area_ratio,
         ):
             if j in forced_merge:
                 continue
@@ -306,7 +366,11 @@ def assign_tracks(
             current[j].match_area_similarity = metrics["area_similarity"]
             current[j].match_shape_similarity = metrics["shape_similarity"]
             current[j].match_margin = metrics.get("ambiguity_margin", 1.0)
+            current[j].current_margin = metrics.get("current_margin", 1.0)
+            current[j].previous_margin = metrics.get("previous_margin", 1.0)
+            current[j].match_score = metrics.get("similarity", 0.0)
             current[j].match_ambiguous = bool(metrics.get("ambiguous", 0.0))
+            current[j].match_status = "ambiguous_match" if current[j].match_ambiguous else "matched"
             matched_curr.add(j)
         for j, obs in enumerate(current):
             if j not in matched_curr:
@@ -376,6 +440,44 @@ def _gap_geometry_change(
     return changed, b_iou, ratio
 
 
+OBSERVATION_STATUSES = {
+    "present", "usable_absent", "not_detected", "unusable", "occluded",
+    "registration_issue", "not_covered", "ambiguous",
+}
+
+
+def _observation_status(obs: Observation | None, context: dict[str, Any], min_quality_fraction: float) -> str:
+    quality = str(context.get("date_quality", "usable") or "usable").lower()
+    registration = str(context.get("registration_status", "passed") or "passed").lower()
+    covered = float(context.get("covered_fraction", 1.0) or 0.0)
+    usable = float(context.get("usable_fraction", 1.0) or 0.0)
+    if quality in {"unusable", "occluded", "registration_issue"}:
+        return quality
+    if registration == "failed":
+        return "registration_issue"
+    if covered < float(context.get("min_covered_fraction", 0.5)):
+        return "not_covered"
+    if bool(context.get("ambiguous", False)) or (obs is not None and obs.match_ambiguous):
+        return "ambiguous"
+    if obs is not None:
+        return "present"
+    if usable >= min_quality_fraction:
+        return "usable_absent"
+    return "not_detected"
+
+
+def compute_confidence_score(components: dict[str, float], weights: dict[str, float] | None = None) -> float:
+    selected = weights or DEFAULT_CONFIG["confidence"]["weights"]
+    denominator = sum(max(float(value), 0.0) for value in selected.values())
+    if denominator <= 0:
+        raise ValueError("Confidence weights must contain a positive value")
+    score = sum(
+        max(float(weight), 0.0) * min(1.0, max(0.0, float(components.get(name, 0.0))))
+        for name, weight in selected.items()
+    ) / denominator
+    return min(1.0, max(0.0, float(score)))
+
+
 def summarize_tracks(
     observations: list[Observation],
     all_dates: list[str],
@@ -389,11 +491,19 @@ def summarize_tracks(
     max_soft_gap_days: int = 800,
     construction_gap_buffer_m: float = 4.0,
     construction_gap_max_buffer_iou: float = 0.35,
+    observation_context: dict[tuple[str, str], dict[str, Any]] | None = None,
+    min_quality_fraction: float = 0.8,
+    date_metadata: dict[str, dict[str, Any]] | None = None,
+    confidence_weights: dict[str, float] | None = None,
+    confidence_high_threshold: float = 0.75,
+    confidence_medium_threshold: float = 0.50,
 ) -> tuple[gpd.GeoDataFrame, pd.DataFrame, gpd.GeoDataFrame]:
     if not observations:
         empty = gpd.GeoDataFrame(columns=["geometry"], geometry="geometry", crs=None)
         return empty, pd.DataFrame(), empty
     usability = usability or {}
+    observation_context = observation_context or {}
+    date_metadata = date_metadata or {}
     grouped: dict[str, list[Observation]] = {}
     for obs in observations:
         grouped.setdefault(obs.track_id, []).append(obs)
@@ -404,9 +514,21 @@ def summarize_tracks(
         items.sort(key=lambda x: x.date)
         item_by_date = {x.date: x for x in items}
         raw_presence: list[int | None] = []
+        status_by_date: dict[str, str] = {}
+        context_by_date: dict[str, dict[str, Any]] = {}
         for d in all_dates:
-            usable = usability.get((track_id, d), True)
-            raw_presence.append((1 if d in item_by_date else 0) if usable else None)
+            context = dict(observation_context.get((track_id, d), {}))
+            if not usability.get((track_id, d), True) and "date_quality" not in context:
+                context["date_quality"] = "unusable"
+                context["usable_fraction"] = 0.0
+            context.setdefault("date_quality", "usable")
+            context.setdefault("usable_fraction", 1.0)
+            context.setdefault("covered_fraction", 1.0)
+            context.setdefault("registration_status", "passed")
+            status = _observation_status(item_by_date.get(d), context, min_quality_fraction)
+            status_by_date[d] = status
+            context_by_date[d] = context
+            raw_presence.append(1 if status == "present" else 0 if status == "usable_absent" else None)
         presence = list(raw_presence)
         repaired_idx: list[int] = []
         if isolated_gap_repair:
@@ -417,9 +539,9 @@ def summarize_tracks(
                 max_gap_days=max_soft_gap_days,
             )
         present_indices = [i for i, v in enumerate(presence) if v == 1]
-        if not present_indices:
-            continue
-        first_i, last_i = min(present_indices), max(present_indices)
+        forced_uncertain = not present_indices
+        evidence_indices = present_indices or [all_dates.index(item.date) for item in items]
+        first_i, last_i = min(evidence_indices), max(evidence_indices)
         first_date, last_date = all_dates[first_i], all_dates[last_i]
         scores = [x.score for x in items]
         mean_score = float(np.mean(scores))
@@ -460,7 +582,9 @@ def summarize_tracks(
             else:
                 break
 
-        if construction_transition:
+        if forced_uncertain or any(status == "ambiguous" for status in status_by_date.values()):
+            state = "uncertain"
+        elif construction_transition:
             state = "construction_candidate"
         elif nonmonotonic_unrepaired:
             state = "uncertain"
@@ -505,6 +629,50 @@ def summarize_tracks(
         elif nonmonotonic_raw:
             temporal_flag = "nonmonotonic_needs_review"
 
+        interval_component = 1.0
+        if interval_start and interval_end:
+            interval_days = max((_parse_date(interval_end) - _parse_date(interval_start)).days, 0)
+            interval_component = max(0.0, 1.0 - interval_days / 730.0)
+        usable_values = [float(context_by_date[date].get("usable_fraction", 0.0) or 0.0) for date in all_dates]
+        registration_values = [
+            1.0 if str(context_by_date[date].get("registration_status", "passed")).lower() != "failed" else 0.0
+            for date in all_dates
+        ]
+        off_nadir_values = []
+        for item in items:
+            try:
+                value = date_metadata.get(item.date, {}).get("off_nadir_deg")
+                if value is not None and str(value) != "":
+                    off_nadir_values.append(float(value))
+            except (TypeError, ValueError):
+                pass
+        off_nadir_component = 1.0
+        if len(off_nadir_values) >= 2:
+            off_nadir_component = max(0.0, 1.0 - (max(off_nadir_values) - min(off_nadir_values)) / 30.0)
+        matched_scores = [item.match_score for item in items if item.matched_from_track]
+        matched_margins = [item.match_margin for item in items if item.matched_from_track]
+        components = {
+            "detection_score": mean_score,
+            "valid_observations": min(1.0, sum(status in {"present", "usable_absent"} for status in status_by_date.values()) / 3.0),
+            "interval_width": interval_component,
+            "usable_fraction": float(np.mean(usable_values)) if usable_values else 0.0,
+            "match_score": float(np.mean(matched_scores)) if matched_scores else 0.5,
+            "ambiguity_margin": float(np.mean([min(1.0, margin / 0.20) for margin in matched_margins])) if matched_margins else 1.0,
+            "registration": float(np.mean(registration_values)) if registration_values else 0.0,
+            "off_nadir_consistency": off_nadir_component,
+            "canonical_geometry": float(np.mean([item.tracking_geometry is not None for item in items])),
+            "lineage_clarity": 0.5 if any(item.lineage_parent_candidates for item in items) else 1.0,
+            "manual_review": 1.0 if any(bool(value.get("manual_review", False)) for value in context_by_date.values()) else 0.5,
+        }
+        confidence_score = compute_confidence_score(components, confidence_weights)
+        if state == "uncertain" or any(item.match_ambiguous for item in items):
+            confidence_score = min(confidence_score, confidence_medium_threshold - 0.01)
+        confidence = (
+            "high" if confidence_score >= confidence_high_threshold
+            else "medium" if confidence_score >= confidence_medium_threshold
+            else "low"
+        )
+
         representative = max(items, key=lambda x: x.score).geometry
         review_status = "pending" if state == "uncertain" or confidence == "low" else "auto"
         if temporal_flag:
@@ -528,7 +696,10 @@ def summarize_tracks(
                 "temporal_flag": temporal_flag,
                 "review_status": review_status,
                 "confidence": confidence,
-                "schema_version": "0.3.0",
+                "confidence_level": confidence,
+                "confidence_score": confidence_score,
+                "confidence_components": json.dumps(components, ensure_ascii=False, sort_keys=True),
+                "schema_version": "0.4.0",
                 "geometry": representative,
             }
         )
@@ -544,21 +715,34 @@ def summarize_tracks(
                 "interval_end": interval_end,
                 "interval_mid_estimate": interval_mid,
                 "confidence": confidence,
+                "confidence_level": confidence,
+                "confidence_score": confidence_score,
                 "mean_score": mean_score,
                 "temporal_flag": temporal_flag,
-                "schema_version": "0.3.0",
+                "schema_version": "0.4.0",
             }
         )
         for d, value in zip(all_dates, raw_presence):
             obs = item_by_date.get(d)
+            context = context_by_date[d]
+            status = status_by_date[d]
             long_rows.append(
                 {
                     "track_id": track_id,
                     "date": d,
-                    "usable": value is not None,
-                    "present": np.nan if value is None else int(value),
+                    "observation_status": status,
+                    "usable": status in {"present", "usable_absent"},
+                    "present": int(obs is not None),
+                    "usable_fraction": float(context.get("usable_fraction", 0.0) or 0.0),
+                    "covered_fraction": float(context.get("covered_fraction", 0.0) or 0.0),
                     "score": obs.score if obs else np.nan,
                     "prediction_id": obs.prediction_id if obs else "",
+                    "match_status": obs.match_status if obs else "absent",
+                    "match_score": obs.match_score if obs else np.nan,
+                    "ambiguity_margin": obs.match_margin if obs else np.nan,
+                    "date_quality": str(context.get("date_quality", "usable")),
+                    "geometry_source": "canonical" if obs and obs.tracking_geometry is not None else "observed" if obs else "representative_location",
+                    "notes": str(context.get("notes", "")),
                     "matched_from_track": obs.matched_from_track if obs else "",
                     "match_iou": obs.match_iou if obs else np.nan,
                     "match_buffer_iou": obs.match_buffer_iou if obs else np.nan,
@@ -567,10 +751,12 @@ def summarize_tracks(
                     "match_area_similarity": obs.match_area_similarity if obs else np.nan,
                     "match_shape_similarity": obs.match_shape_similarity if obs else np.nan,
                     "match_margin": obs.match_margin if obs else np.nan,
+                    "current_margin": obs.current_margin if obs else np.nan,
+                    "previous_margin": obs.previous_margin if obs else np.nan,
                     "match_ambiguous": obs.match_ambiguous if obs else False,
                     "lineage_parent_candidates": obs.lineage_parent_candidates if obs else "",
-                    "registration_status": "passed" if value is not None else "unusable",
-                    "schema_version": "0.3.0",
+                    "registration_status": str(context.get("registration_status", "passed")),
+                    "schema_version": "0.4.0",
                     "geometry": obs.geometry if obs else None,
                 }
             )
@@ -611,7 +797,10 @@ def detect_lineage_events(
         adjacency: dict[tuple[str, int], set[tuple[str, int]]] = {}
         for i, prow in prev.iterrows():
             parent = prow.geometry.buffer(lineage_buffer_m)
-            for j, crow in curr.iterrows():
+            candidate_indices = curr.sindex.query(parent, predicate="intersects")
+            for j in candidate_indices:
+                j = int(j)
+                crow = curr.iloc[j]
                 child = crow.geometry.buffer(lineage_buffer_m)
                 overlap = max(
                     intersection_over_area(parent, child, denominator="first"),
@@ -666,7 +855,7 @@ def detect_lineage_events(
                     "coverage": coverage,
                     "counterpart_coverage": counterpart,
                     "review_status": "pending",
-                    "schema_version": "0.3.0",
+                    "schema_version": "0.4.0",
                     "geometry": unary_union([curr.iloc[index].geometry for index in child_idx]),
                 }
             )

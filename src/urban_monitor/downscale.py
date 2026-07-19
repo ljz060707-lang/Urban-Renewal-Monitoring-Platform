@@ -65,22 +65,32 @@ def export_student_change_labels(
     min_fraction_to_keep: float = 0.05,
     require_reviewed_or_high_confidence: bool = True,
     model_version: str = "",
-    schema_version: str = "0.3.0",
+    schema_version: str = "0.4.0",
     run_id: str = "",
     source_aoi: str = "",
 ) -> list[Path]:
     """Export MMU-filtered, fractional 10 m labels for a later student model."""
     summary = gpd.read_file(summary_path)
+    effective_state = pd.Series("", index=summary.index, dtype=str)
+    for column in ("state_final", "reviewed_state", "state"):
+        if column in summary.columns:
+            values = summary[column].fillna("").astype(str).str.strip()
+            effective_state = effective_state.where(effective_state.ne(""), values)
+    summary["state_effective"] = effective_state
+    rejected = summary["state_effective"].str.casefold().eq("rejected")
+    if "review_status" in summary.columns:
+        rejected |= summary["review_status"].fillna("").astype(str).str.casefold().eq("rejected")
+    summary = summary[~rejected].copy()
     intervals = pd.read_csv(intervals_path, dtype=str, encoding="utf-8-sig").fillna("")
     frame = summary.merge(intervals[["track_id", "interval_end", "earliest_absent_date"]], on="track_id", how="left")
     ensure_metric_crs(frame.crs)
     frame["event_area_m2"] = frame.geometry.area.astype(float)
     frame["event_date"] = np.where(
-        frame["state"].eq("demolished"),
+        frame["state_effective"].eq("demolished"),
         frame["earliest_absent_date"],
         frame["interval_end"],
     )
-    frame = frame[frame["state"].isin(["new_building", "demolished", "construction_candidate"])]
+    frame = frame[frame["state_effective"].isin(["new_building", "demolished", "construction_candidate"])]
     excluded_by_mmu = frame[frame["event_area_m2"] < min_mapping_unit_m2].copy()
     eligible = frame[frame["event_area_m2"] >= min_mapping_unit_m2].copy()
     excluded_missing_date = eligible[eligible["event_date"].astype(str).str.len() < 10].copy()
@@ -108,7 +118,7 @@ def export_student_change_labels(
     for event_date, group in frame.groupby("event_date"):
         arrays = []
         for state in ["new_building", "demolished", "construction_candidate"]:
-            arr = _fractional_raster(group.loc[group["state"] == state, "geometry"], transform, width, height, supersample)
+            arr = _fractional_raster(group.loc[group["state_effective"] == state, "geometry"], transform, width, height, supersample)
             arr[arr < min_fraction_to_keep] = 0.0
             arrays.append(arr)
         any_change = np.clip(np.maximum.reduce(arrays), 0.0, 1.0)
@@ -150,7 +160,7 @@ def export_student_change_labels(
                 "path": str(out_path),
             }
         )
-    columns = ["track_id", "state", "event_area_m2", "event_date", "confidence", "review_status"]
+    columns = ["track_id", "state", "state_effective", "event_area_m2", "event_date", "confidence", "review_status"]
     for excluded, name in [
         (excluded_by_mmu, "excluded_by_mmu.csv"),
         (excluded_missing_date, "excluded_missing_date.csv"),
@@ -159,5 +169,8 @@ def export_student_change_labels(
         excluded[[column for column in columns if column in excluded.columns]].to_csv(
             output_dir / name, index=False, encoding="utf-8-sig"
         )
-    pd.DataFrame(inventory_rows).to_csv(output_dir / "label_inventory.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        inventory_rows,
+        columns=["event_date", "n_events", "event_area_m2", "target_resolution_m", "min_mapping_unit_m2", "path"],
+    ).to_csv(output_dir / "label_inventory.csv", index=False, encoding="utf-8-sig")
     return outputs

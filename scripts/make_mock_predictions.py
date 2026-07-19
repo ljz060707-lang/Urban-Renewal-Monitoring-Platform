@@ -8,6 +8,7 @@ import geopandas as gpd
 
 from urban_monitor.config import load_config
 from urban_monitor.manifest import load_manifest
+from urban_monitor.outputs import prepare_output
 
 
 def main() -> None:
@@ -19,11 +20,12 @@ def main() -> None:
     output = Path(cfg["output_root"]) / "predictions"
     output.mkdir(parents=True, exist_ok=True)
     for record in load_manifest(cfg["manifest"], cfg["data_root"]):
+        prepare_output(output / f"{record.date}.gpkg", force=args.force)
         frame = gpd.read_file(record.label_path)
         frame = frame[["geometry"]].copy()
         frame["score"] = 0.93
         frame["model_version"] = cfg["model_version"]
-        frame["schema_version"] = cfg.get("project", {}).get("schema_version", "0.3.0")
+        frame["schema_version"] = cfg.get("project", {}).get("schema_version", "0.4.0")
         frame["prediction_id"] = [f"{record.date}-p{i:04d}" for i in range(len(frame))]
         frame.to_file(output / f"{record.date}.gpkg", driver="GPKG")
     print(output)

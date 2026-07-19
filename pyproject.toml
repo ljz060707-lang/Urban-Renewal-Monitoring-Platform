@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "urban-renewal-phase1"
+version = "0.3.0"
+description = "Small-area high-resolution temporal urban renewal monitoring starter"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,5 @@
+date,image_path,label_path,quality_mask_path,split,source,off_nadir_deg,sun_elevation_deg,season,quality_notes
+2022-04-01,images/2022-04-01.tif,labels/2022-04-01.gpkg,quality/2022-04-01.tif,train,synthetic_off_nadir_demo,2.0,52,spring,synthetic smoke test
+2023-08-01,images/2023-08-01.tif,labels/2023-08-01.gpkg,quality/2023-08-01.tif,train,synthetic_off_nadir_demo,18.0,68,summer,synthetic smoke test
+2024-01-15,images/2024-01-15.tif,labels/2024-01-15.gpkg,quality/2024-01-15.tif,train,synthetic_off_nadir_demo,6.0,24,winter,synthetic smoke test
+2025-04-01,images/2025-04-01.tif,labels/2025-04-01.gpkg,quality/2025-04-01.tif,val,synthetic_off_nadir_demo,12.0,50,spring,synthetic smoke test

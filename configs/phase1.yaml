@@ -1,0 +1,126 @@
+project:
+  name: urban-renewal-phase1
+  version: "0.3.0"
+  schema_version: "0.3.0"
+aoi:
+  aoi_id: replace_me
+  aoi_name_cn: 待配置片区
+  city_name_cn: 待配置城市
+  province_name_cn: 待配置省份
+aoi_id: replace_me
+data_root: data/replace_me
+manifest: data/replace_me/manifest.csv
+output_root: outputs/replace_me
+
+seed: 42
+model_version: phase1-maskrcnn-v3
+
+crs:
+  source_policy: preserve
+  analysis_strategy: local_utm
+  exchange_crs: EPSG:4326
+  display_crs: EPSG:3857
+  reject_missing_crs: true
+  reject_geographic_metric_operations: true
+  reject_web_mercator_metric_operations: true
+  warn_cross_zone_width_km: 100
+
+alignment:
+  require_projected_crs: true
+  max_pixel_shift_warning: 1.0
+
+chips:
+  size: 512
+  overlap: 64
+  min_polygon_pixels: 12
+
+training:
+  num_classes: 2
+  epochs: 20
+  batch_size: 2
+  learning_rate: 0.005
+  weight_decay: 0.0005
+  num_workers: 4
+  score_threshold: 0.50
+  mask_threshold: 0.50
+  checkpoint: null
+
+# Conservative building polygon cleanup before QGIS review.
+regularization:
+  simplify_tolerance_m: 0.35
+  orthogonalize: true
+  rectangularity_threshold: 0.82
+  min_area_m2: 4.0
+  max_area_change_ratio: 1.20
+  max_centroid_shift_m: 2.0
+  max_hausdorff_distance_m: 4.0
+  preserve_holes: true
+  min_hole_area_m2: 5.0
+
+# RGB-only masks catch obvious failures; provider QA and human review remain authoritative.
+quality:
+  priority: [manual, provider, rgb_heuristic, default]
+  min_quality_fraction: 0.70
+  invalidate_dark_regions: false
+  bright_threshold: 248
+  bright_max_saturation: 0.12
+  dark_threshold: 0
+  dilation_pixels: 2
+  blur_block_size: 128
+  min_laplacian_variance: 0.0
+  min_global_dynamic_range: 12.0
+
+tracking:
+  base_buffer_m: 3.0
+  min_iou: 0.08
+  min_buffer_iou: 0.12
+  min_bbox_iou: 0.05
+  max_centroid_distance_m: 25.0
+  buffer_m: 4.0
+  off_nadir_scale_m_per_degree: 0.35
+  max_dynamic_buffer_m: 20.0
+  ambiguity_margin_threshold: 0.08
+  match_weights:
+    iou: 0.15
+    buffer_iou: 0.35
+    bbox_iou: 0.10
+    centroid: 0.25
+    area: 0.10
+    shape: 0.05
+  min_persistence: 2
+  max_track_gap: 2
+  max_track_gap_days: 1100
+  max_soft_gap_epochs: 2
+  max_soft_gap_days: 1100
+  min_quality_fraction: 0.80
+  isolated_gap_repair: true
+  construction_area_ratio: 1.50
+  construction_gap_buffer_m: 4.0
+  construction_gap_max_buffer_iou: 0.35
+  low_confidence_threshold: 0.55
+  force_new_track_on_merge: true
+  lineage:
+    min_component_overlap: 0.25
+    min_event_coverage: 0.70
+    min_counterpart_coverage: 0.25
+    buffer_m: 2.0
+
+review:
+  review_csv: outputs/replace_me/review/reviewed_states.csv
+  chip_padding_m: 25.0
+  allow_chinese_notes: true
+  preserve_auto_results: true
+  review_version: "0.3.0"
+
+# Phase-2 handoff: filter sub-pixel events before producing 10 m labels.
+student_export:
+  target_resolution_m: 10.0
+  min_mapping_unit_m2: 200.0
+  supersample: 4
+  min_fraction_to_keep: 0.05
+  require_reviewed_or_high_confidence: true
+
+provenance:
+  write_run_manifest: true
+  hash_inputs: true
+  record_git_commit: true

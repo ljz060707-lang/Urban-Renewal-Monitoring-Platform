@@ -485,7 +485,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    routed = list(sys.argv[1:] if argv is None else argv)
+    if routed and routed[0].startswith("change-"):
+        from .change.cli import main as change_main
+        return change_main(routed)
+    args = build_parser().parse_args(routed)
     if args.command == "doctor":
         return doctor(args.data_root)
     if args.command == "demo":

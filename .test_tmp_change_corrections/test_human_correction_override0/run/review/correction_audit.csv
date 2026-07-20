@@ -1,0 +1,4 @@
+﻿sample_id,action,decision
+a,corrected,label_error
+b,excluded,exclude
+c,kept,prediction_error

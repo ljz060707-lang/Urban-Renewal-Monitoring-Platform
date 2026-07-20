@@ -1,0 +1,61 @@
+schema_version: "0.5.0"
+output_root: outputs/pretraining/change
+
+datasets:
+  s2looking:
+    enabled: false
+    root: data/public_change/s2looking
+  second:
+    enabled: false
+    root: data/public_change/second
+    building_class_id: 1
+    class_mapping_file: null
+    class_mapping: {}
+    mapping_verified: false
+  dsifn:
+    enabled: false
+    root: data/public_change/dsifn
+
+audit:
+  preview_count: 30
+  second_preview_count: 30
+
+model:
+  architecture: multitask_siamese_unet
+  encoder: resnet34
+  pretrained: false
+  semantic_classes: 7
+
+training:
+  seed: 42
+  epochs: 30
+  batch_size: auto
+  num_workers: auto
+  learning_rate: 0.0002
+  weight_decay: 0.0001
+  amp: true
+  gradient_clip_norm: 1.0
+  early_stopping_patience: 7
+  resume: true
+  stage: binary
+  dataset_weights:
+    s2looking: 1.0
+    second: 1.0
+    dsifn: 1.0
+
+loss:
+  binary_bce: 1.0
+  binary_dice: 1.0
+  directional_bce: 1.0
+  directional_dice: 1.0
+  semantic_ce: 1.0
+  consistency: 0.2
+  uncertainty: 0.05
+
+local_finetune:
+  freeze_encoder_epochs: 5
+  partial_unfreeze_epochs: 10
+  full_unfreeze_epochs: 20
+  learning_rate_head: 0.0002
+  learning_rate_partial: 0.00005
+  learning_rate_full: 0.00001

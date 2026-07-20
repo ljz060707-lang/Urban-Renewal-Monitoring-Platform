@@ -1,0 +1,2 @@
+﻿date,holdout,precision,recall,f1,iou,dice,area_error_m2,object_count_error,tp,fp,fn
+2024-01-01,synthetic_spatial_holdout,1.0,1.0,1.0,1.0,1.0,0.0,0,1,0,0

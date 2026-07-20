@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset='utf-8'>
+<title>城市更新时序 Ground Truth 审核</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:20px;background:#f5f6f8;color:#1f2937}
+.card{background:white;border:1px solid #d7dce2;border-radius:8px;margin:14px 0;padding:12px}
+.timeline{display:flex;gap:8px;overflow-x:auto}
+.frame{min-width:230px;border:1px solid #e3e6ea;padding:6px;border-radius:6px} .frame img{width:220px;height:220px;object-fit:contain;background:#111}
+button{margin:3px;padding:7px 10px} button.active{background:#2563eb;color:white}
+.qbtn{font-size:11px;padding:4px 6px} .qbtn.active{background:#7c3aed}
+textarea{width:100%;min-height:55px} #csv{width:100%;height:220px;font-family:monospace}
+input{padding:7px 10px;margin:3px 8px;border:1px solid #c7cdd4;border-radius:4px}
+.flag{background:#fff3cd;padding:4px 8px;border-radius:4px} .meta{color:#59636e;font-size:12px}
+</style>
+<h1>城市更新时序 Ground Truth 审核</h1>
+<p>红线为当期检测，黄线仅表示代表位置。判断拆除前必须先标记不可用、遮挡或配准异常日期；merge/split lineage 独立审核。</p>
+<label for='reviewer'>审核人</label><input id='reviewer' placeholder='姓名或稳定 ID'><button onclick='exportCSV()'>导出审核 CSV</button>
+<h2>建筑轨迹</h2><div id='root'></div>
+<h2>父子 lineage 事件</h2><div id='lineageRoot'></div>
+<h2>CSV</h2><textarea id='csv'></textarea>
+<script>
+const rows=[{"track_id": "trk1", "auto_state": "uncertain", "confidence": "low", "mean_score": 0.8, "temporal_flag": "", "event_refs": [], "images": [{"date": "2024-01-01", "path": "chips/trk1/2024-01-01.jpg", "present": true, "off_nadir_deg": null, "season": ""}], "schema_version": "0.4.0"}]; const lineageRows=[]; const states=["stable", "new_building", "demolished", "construction_candidate", "uncertain", "rejected"]; const qualityOptions=["usable", "unusable", "occluded", "registration_issue"]; const lineageOptions=["confirm", "reject", "needs_geometry_edit"];
+const key='urban-renewal-review-v4'; let labels=JSON.parse(localStorage.getItem(key)||'{}');
+function save(){localStorage.setItem(key,JSON.stringify(labels));}
+const root=document.getElementById('root');
+for(const r of rows){
+ const card=document.createElement('div'); card.className='card';
+ const flag=r.temporal_flag?`<span class='flag'>${r.temporal_flag}</span>`:'';
+ card.innerHTML=`<h3>${r.track_id} | auto=${r.auto_state} | confidence=${r.confidence} | score=${r.mean_score.toFixed(3)} ${flag}</h3><div class='meta'>lineage events: ${r.event_refs.join(', ')||'none'}</div>`;
+ const tl=document.createElement('div'); tl.className='timeline';
+ for(const im of r.images){
+   const f=document.createElement('div');f.className='frame';
+   f.innerHTML=`<b>${im.date}</b> | detected=${im.present}<div class='meta'>off-nadir=${im.off_nadir_deg??''} season=${im.season||''}</div><img src='${im.path}'><div class='qcontrols'></div>`;
+   const qc=f.querySelector('.qcontrols');
+   for(const q of qualityOptions){const b=document.createElement('button');b.className='qbtn';b.textContent=q;b.onclick=()=>{labels[r.track_id]=labels[r.track_id]||{};labels[r.track_id].date_quality=labels[r.track_id].date_quality||{};labels[r.track_id].date_quality[im.date]=q;save();renderQ()};qc.appendChild(b)}
+   function renderQ(){for(const b of qc.children)b.classList.toggle('active',b.textContent===(((labels[r.track_id]||{}).date_quality||{})[im.date]||'usable'))} renderQ();
+   tl.appendChild(f)
+ }
+ card.appendChild(tl); const controls=document.createElement('div');
+ for(const s of states){const b=document.createElement('button');b.textContent=s;b.onclick=()=>{labels[r.track_id]=labels[r.track_id]||{};labels[r.track_id].state=s;save();render()};controls.appendChild(b)}
+ const notes=document.createElement('textarea');notes.placeholder='notes / roof-vs-footprint issue / geometry correction needed';notes.value=(labels[r.track_id]||{}).notes||'';notes.oninput=()=>{labels[r.track_id]=labels[r.track_id]||{};labels[r.track_id].notes=notes.value;save()};
+ card.appendChild(controls);card.appendChild(notes);root.appendChild(card);
+ function render(){for(const b of controls.children)b.classList.toggle('active',b.textContent===((labels[r.track_id]||{}).state||r.auto_state))} render();
+}
+const lineageRoot=document.getElementById('lineageRoot');
+for(const e of lineageRows){
+ const card=document.createElement('div');card.className='card';card.innerHTML=`<h3>${e.event_id} | ${e.event_type}</h3><p>${e.date_from} → ${e.date_to} | parents=${e.parents} | children=${e.children} | coverage=${e.coverage.toFixed(3)}</p>`;
+ const controls=document.createElement('div');
+ for(const opt of lineageOptions){const b=document.createElement('button');b.textContent=opt;b.onclick=()=>{labels[e.event_id]=labels[e.event_id]||{};labels[e.event_id].lineage_action=opt;save();renderE()};controls.appendChild(b)}
+ const notes=document.createElement('textarea');notes.placeholder='lineage notes / corrected parent-child IDs';notes.value=(labels[e.event_id]||{}).notes||'';notes.oninput=()=>{labels[e.event_id]=labels[e.event_id]||{};labels[e.event_id].notes=notes.value;save()};
+ card.appendChild(controls);card.appendChild(notes);lineageRoot.appendChild(card);
+ function renderE(){for(const b of controls.children)b.classList.toggle('active',b.textContent===((labels[e.event_id]||{}).lineage_action||''))} renderE();
+}
+function esc(v){return '"'+String(v??'').replaceAll('"','""')+'"'}
+function exportCSV(){
+ let out=['row_type,record_id,track_id,event_id,reviewed_state,lineage_action,date_quality_json,notes,reviewer,review_time,review_version'];
+ const now=new Date().toISOString(); const reviewer=document.getElementById('reviewer').value.trim();
+ for(const r of rows){const x=labels[r.track_id]||{};out.push(['track',r.track_id,r.track_id,'',x.state||r.auto_state,'',JSON.stringify(x.date_quality||{}),x.notes||'',reviewer,now,'0.4.0'].map(esc).join(','))}
+ for(const e of lineageRows){const x=labels[e.event_id]||{};out.push(['lineage',e.event_id,'',e.event_id,'',x.lineage_action||'', '',x.notes||'',reviewer,now,'0.4.0'].map(esc).join(','))}
+ document.getElementById('csv').value=out.join('\n')
+}
+</script>

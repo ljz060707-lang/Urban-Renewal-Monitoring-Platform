@@ -331,3 +331,9 @@ python scripts/export_student_labels.py --config configs/phase1.yaml
 ## 15. Reproducibility
 
 `python scripts/run_phase1_smoke.py --config configs/example.yaml` creates an isolated `outputs/<aoi_id>/runs/<run_id>` directory and records config/input hashes, environment, CRS decisions, status and output inventory in `RUN_MANIFEST.json`.
+
+## 16. v0.5 双教师扩展
+
+v0.5 在不改变 v0.4 建筑实例教师入口的前提下新增 `urban_monitor.change`：公共数据 adapter、MultiTask Siamese U-Net、masked loss、平衡采样、三阶段 GPU 训练、分数据集评估、review、correction 回流、本地微调和双教师 fusion。
+
+`all/prepare/train/predict/track` 属于建筑实例教师；`change-*` 属于变化教师。两套输出分别维护 `outputs/<aoi_id>/latest.json` 与 `outputs/pretraining/change/latest.json`。正式变化训练只允许 CUDA；`change-demo --device cpu` 只验证 plumbing，不代表真实精度。

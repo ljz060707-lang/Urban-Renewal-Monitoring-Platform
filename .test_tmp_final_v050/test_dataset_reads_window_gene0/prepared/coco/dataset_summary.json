@@ -1,0 +1,21 @@
+{
+  "schema_version": "0.4.0",
+  "tile_size": 32,
+  "overlap": 0,
+  "splits": {
+    "train": {
+      "images": 6,
+      "annotations": 3,
+      "positive_tiles": 3,
+      "empty_tiles": 3,
+      "excluded_boundary_tiles": 6
+    },
+    "val": {
+      "images": 2,
+      "annotations": 1,
+      "positive_tiles": 1,
+      "empty_tiles": 1,
+      "excluded_boundary_tiles": 2
+    }
+  }
+}

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "urban-renewal-phase1"
-version = "0.4.0"
-description = "Plug-and-train high-resolution multi-temporal urban renewal monitoring"
+version = "0.5.0"
+description = "Plug-and-train building instance and bi-temporal change teachers for urban renewal monitoring"
 requires-python = ">=3.10"
 dependencies = [
   "PyYAML>=6.0",
@@ -29,6 +29,9 @@ train = [
   "tqdm>=4.66",
   "tensorboard>=2.14",
 ]
+review = [
+  "gradio>=5.0",
+]
 
 [project.scripts]
 urban-monitor = "urban_monitor.cli:main"
@@ -38,4 +41,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 addopts = "-m 'not train_smoke'"
-markers = ["train_smoke: real Torch CPU training and inference smoke tests"]
+markers = [
+  "train_smoke: real Torch CPU training and inference smoke tests",
+  "gpu: real CUDA training smoke tests; never mocked",
+]

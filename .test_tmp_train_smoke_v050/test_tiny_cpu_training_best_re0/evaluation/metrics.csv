@@ -1,0 +1,2 @@
+﻿precision,recall,F1,mean_matched_IoU,Dice,object_count_error,building_area_error,tp,fp,fn,checkpoint,checkpoint_hash
+0.0,0.0,0.0,0.0,0.0,-1.0,-1024.0,0,0,1,C:\Users\ljz52\Documents\Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\.test_tmp_train_smoke_v050\test_tiny_cpu_training_best_re0\training\checkpoints\best.pth,e5828169c97ff3512861fe562d1b64dc2db31c6903505844088b6b4041e034d2

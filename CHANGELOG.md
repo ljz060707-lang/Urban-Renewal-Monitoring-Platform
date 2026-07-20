@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 - 2026-07-19
+
+- Added independent S2Looking, SECOND and DSIFN adapters with a unified missing-supervision-aware index.
+- Added MultiTask Siamese U-Net with shared ResNet34 encoder and binary, directional, semantic and uncertainty heads.
+- Added masked multi-task losses, dataset-balanced sampling, synchronized pair augmentation and staged binary/semantic/directional training.
+- Added strict CUDA gates, AMP, GradScaler, gradient clipping, bounded auto-batch, DDP, resume and deduplicated best/last/epoch checkpoints.
+- Added per-dataset metrics, predictions, error sets, plots, static training dashboard and offline review UI.
+- Added optional Gradio review, correction precedence, review-aware retraining and local AOI candidate labels/fine-tuning schedule.
+- Added double-teacher fusion, joint review and rejected-object exclusion from student fusion labels.
+- Preserved all v0.4 building-instance commands and tests.
+- Actual local evidence: 113 base tests passed; 3 train smoke tests passed; synthetic CPU three-stage demo completed. GPU smoke and real public-data training were not completed because the active Torch build is CPU-only and dataset paths are absent.
+
 ## 0.4.0 - 2026-07-19
 
 - Added `python run.py all --aoi <aoi_id>` and the `doctor`, `prepare`, `train`, `evaluate`, `predict`, `track`, and `demo` commands.

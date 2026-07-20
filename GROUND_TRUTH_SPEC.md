@@ -109,3 +109,13 @@ outputs/<aoi_id>/runs/<run_id>/data_report/
 ├── field_mapping.json
 └── label_validation_report.md
 ```
+
+## 10. v0.5 双时相变化监督
+
+公共变化索引使用 `has_binary`、`has_directional`、`has_semantic`。缺失任务路径为空且 flag 为 false，不得写入全零替代标签。
+
+- S2Looking：`GT_NEW=label1`，`GT_DEM=label2`，`GT_CD=GT_NEW OR GT_DEM`。
+- SECOND：两期语义 ID 必须来自经确认的类别映射；按明确 building class 生成 new/demolition。
+- DSIFN：仅有 `GT_CD`，不能根据未知时间方向推断 new/demolition。
+
+本地逐期 GPKG 差分结果只能标记 `requires_human_review`。人工确认并进入 reviewed index 后，才可作为微调监督。人工修正必须保留原标签 hash、修正 hash、审核人、时间、备注和版本。`exclude`、`misregistration`、未修正 `label_error` 不进入重训；`rejected` 不进入最终学生标签。

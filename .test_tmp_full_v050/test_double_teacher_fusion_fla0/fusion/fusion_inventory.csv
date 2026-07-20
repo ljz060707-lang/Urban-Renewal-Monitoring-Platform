@@ -1,0 +1,3 @@
+﻿state_final,fusion_id,new_probability_mean,demolition_probability_mean,any_change_probability_mean,uncertainty_mean,building_teacher_state,change_teacher_state,teacher_agreement,fusion_confidence,review_priority,fusion_issues
+stable,fusion_00000000,0.10000000149011612,0.10000000149011612,0.9000000357627869,0.0,stable,other_change,False,0.09999996423721313,high,stable_vs_high_change
+new_building,fusion_00000001,0.9000000953674316,0.09999999403953552,0.9000000953674316,0.0,new_building,new_building,True,0.9000000953674316,low,

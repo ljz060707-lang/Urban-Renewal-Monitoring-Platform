@@ -1,0 +1,9 @@
+{
+  "device": "cpu",
+  "torch": "2.13.0+cpu",
+  "cuda_runtime": null,
+  "cudnn": null,
+  "amp": false,
+  "batch_size": 1,
+  "num_workers": 0
+}

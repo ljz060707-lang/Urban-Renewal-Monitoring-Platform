@@ -1,5 +1,16 @@
 # Sources and adaptation decisions
 
+## v0.5 change-teacher sources
+
+| Source | Use in v0.5 | Adaptation boundary | License note |
+|---|---|---|---|
+| S2Looking paper/dataset | directional adapter and label consistency audit | clean-room adapter; no data/code vendored | dataset license not independently confirmed; verify before commercial use |
+| SECOND official dataset | semantic and directional supervision | explicit class mapping; no guessed RGB colors | verify official download terms |
+| DSIFN official repository/dataset | binary-only supervision | direction remains missing | official repository states research/non-commercial use |
+| ChangeMamba | optional external backend and SECOND preprocessing reference | Linux/WSL adapter only; no source/weights copied | code Apache-2.0; dataset licenses remain separate |
+
+The default MultiTask Siamese U-Net is a local clean-room implementation based on standard torchvision components. It does not import source code from these repositories.
+
 ## Directly relevant repositories
 
 | Module | Repository | What to reuse conceptually | Phase-1 decision |

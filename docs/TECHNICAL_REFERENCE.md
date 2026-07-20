@@ -105,3 +105,17 @@ stage hash 分为 data、training、evaluation、inference、tracking。未变�
 - RGB quality heuristic 不能替代供应商 QA 和人工审核。
 - GCJ-02/BD-09 转换未内置；需外部可信转换与 provenance。
 - lineage 是待审核候选，不是自动确认的物理重建事实。
+
+## 13. v0.5 变化教师接口
+
+变化教师位于 `src/urban_monitor/change/`，不替换 v0.4 单期实例流程。公共训练写入 `outputs/pretraining/change/<run_id>/`；真实 AOI 的变化候选、fusion 和联合审核写入对应 AOI run。
+
+```bash
+python run.py change-doctor --config configs/change_public.yaml
+python run.py change-prepare --config configs/change_public.yaml
+python run.py change-all --config configs/change_public.yaml --device cuda:0
+python run.py change-all --config configs/change_public.yaml --device cuda:0 --quick
+python run.py change-review --run latest --config configs/change_public.yaml
+```
+
+详细规则见 `PUBLIC_DATASETS.md`、`CHANGE_TEACHER_TECHNICAL.md` 和 `HUMAN_REVIEW_WORKFLOW.md`。

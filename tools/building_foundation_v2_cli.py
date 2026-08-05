@@ -19,6 +19,7 @@ def main() -> int:
         "init-native-recovery", "audit-labels", "inspect-native", "compare-pipeline", "validate-native", "finalize-native",
         "init-b1-pilot", "run-b1-pilot", "finalize-b1-pilot",
         "init-b2-boundary", "run-b2-boundary", "finalize-b2-boundary",
+        "init-b2-diagnostic", "run-b2-diagnostic",
     ):
         item = sub.add_parser(name); item.add_argument("args", nargs=argparse.REMAINDER)
     # The delegated tools own their option schemas.  ``parse_known_args`` is
@@ -43,6 +44,8 @@ def main() -> int:
         "init-b2-boundary": "init_building_v2_b2_boundary_ablation.py",
         "run-b2-boundary": "run_building_v2_b2_boundary_ablation.py",
         "finalize-b2-boundary": "finalize_building_v2_b2_boundary_ablation.py",
+        "init-b2-diagnostic": "init_building_v2_b2_boundary_diagnostic.py",
+        "run-b2-diagnostic": "run_building_v2_b2_boundary_diagnostic.py",
     }[args.command]
     forwarded = [*unknown, *getattr(args, "args", [])]
     return subprocess.call([sys.executable, str(ROOT / "tools" / script), *forwarded], cwd=str(ROOT))

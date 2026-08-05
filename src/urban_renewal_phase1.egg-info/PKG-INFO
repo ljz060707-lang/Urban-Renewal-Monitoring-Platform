@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: urban-renewal-phase1
-Version: 0.4.0
-Summary: Plug-and-train high-resolution multi-temporal urban renewal monitoring
+Version: 0.5.0
+Summary: Plug-and-train building instance and bi-temporal change teachers for urban renewal monitoring
 Requires-Python: >=3.10
 Requires-Dist: PyYAML>=6.0
 Requires-Dist: numpy>=1.24
@@ -20,3 +20,8 @@ Requires-Dist: torch>=2.1; extra == "train"
 Requires-Dist: torchvision>=0.16; extra == "train"
 Requires-Dist: tqdm>=4.66; extra == "train"
 Requires-Dist: tensorboard>=2.14; extra == "train"
+Provides-Extra: review
+Requires-Dist: gradio>=5.0; extra == "review"
+Provides-Extra: ai-review
+Requires-Dist: zai-sdk; extra == "ai-review"
+Requires-Dist: jsonschema>=4; extra == "ai-review"

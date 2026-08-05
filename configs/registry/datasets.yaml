@@ -1,0 +1,135 @@
+schema_version: "1.0"
+allowed_status: [active, development_ready, external_imagery, assets_ready, blocked, planned]
+datasets:
+  - dataset_id: dsifn
+    name: DSIFN
+    root: D:/Data Set/DSIFN-Dataset
+    role: binary_change_teacher
+    task_support: [any_change]
+    native_labels: [binary_change]
+    canonical_labels: [any_change]
+    train_count: 3600
+    val_count: 340
+    test_count: 48
+    test_policy: spent_test
+    pixel_read_policy: test_forbidden
+    adapter: urban_monitor.change.adapters.dsifn.DSIFNAdapter
+    mapping_file: null
+    spatial_resolution: public_dataset_native
+    temporal_structure: paired_t1_t2
+    license_or_source_note: Public dataset; retain upstream license and citation.
+    status: active
+
+  - dataset_id: s2looking
+    name: S2Looking
+    root: D:/Data Set/S2Looking
+    role: directional_change_teacher
+    task_support: [any_change, new_building, demolition]
+    native_labels: [change, new_building, demolition]
+    canonical_labels: [any_change, new_building, demolition]
+    train_count: 3500
+    val_count: 500
+    test_count: 1000
+    test_policy: spent_test
+    pixel_read_policy: test_forbidden
+    adapter: urban_monitor.change.adapters.s2looking.S2LookingAdapter
+    mapping_file: null
+    spatial_resolution: public_dataset_native
+    temporal_structure: paired_t1_t2
+    license_or_source_note: Public dataset; retain upstream license and citation.
+    status: active
+
+  - dataset_id: second
+    name: SECOND
+    root: D:/Data Set/SECOND
+    role: semantic_and_directional_teacher
+    task_support: [any_change, new_building, demolition, semantic_t1, semantic_t2]
+    native_labels: [semantic_t1, semantic_t2]
+    canonical_labels: [any_change, new_building, demolition, semantic_t1, semantic_t2]
+    train_count: 2668
+    val_count: 300
+    test_count: null
+    test_policy: locked_holdout
+    pixel_read_policy: test_metadata_and_pixels_forbidden
+    adapter: urban_monitor.change.adapters.second.SECONDAdapter
+    mapping_file: outputs/v2_readiness/SECOND_MAPPING_AUDIT.json
+    spatial_resolution: public_dataset_native
+    temporal_structure: paired_t1_t2
+    license_or_source_note: Development validation is frozen from official Train, seed 20260726.
+    status: development_ready
+
+  - dataset_id: whu_building
+    name: WHU Building
+    root: D:/Data Set/WHU_Building
+    role: geometry_teacher
+    task_support: [building_probability, building_mask, building_boundary]
+    native_labels: [building_mask]
+    canonical_labels: [building]
+    train_count: 4736
+    val_count: 1036
+    test_count: 2416
+    test_policy: locked_holdout
+    pixel_read_policy: test_metadata_and_pixels_forbidden
+    adapter: urban_monitor.datasets.adapters.base.BaseDatasetAdapter
+    mapping_file: null
+    spatial_resolution: public_dataset_native
+    temporal_structure: single_date
+    license_or_source_note: WHU license and citation must accompany downstream use.
+    status: assets_ready
+
+  - dataset_id: rsbuilding_pretraining
+    name: RSBuilding Pretraining Assets
+    root: D:/Data Set/RSBuilding
+    role: external_geometry_teacher
+    task_support: [building_probability, building_mask, building_boundary]
+    native_labels: []
+    canonical_labels: [building]
+    train_count: null
+    val_count: null
+    test_count: null
+    test_policy: external_pretrained
+    pixel_read_policy: declared_inputs_only
+    adapter: urban_monitor.change.rsbuilding_adapter
+    mapping_file: null
+    spatial_resolution: external_model_native
+    temporal_structure: single_date
+    license_or_source_note: External repository and pretrained weights; keep environment isolated.
+    status: blocked
+
+  - dataset_id: beijing_tongzhou
+    name: Beijing Tongzhou Multi-temporal Imagery
+    root: D:/Data Set/Satellite/beijing_tongzhou
+    role: external_real_scene
+    task_support: [external_inference, temporal_fusion]
+    native_labels: []
+    canonical_labels: []
+    train_count: 0
+    val_count: 0
+    test_count: 0
+    test_policy: not_a_benchmark_split
+    pixel_read_policy: inference_only
+    adapter: urban_monitor.datasets.adapters.base.BaseDatasetAdapter
+    mapping_file: null
+    spatial_resolution: scene_native
+    temporal_structure: multi_date
+    license_or_source_note: Four private/local scene dates; outputs are candidate objects.
+    status: external_imagery
+
+  - dataset_id: beijing_waste_future
+    name: Beijing Waste / Construction Dataset
+    root: null
+    role: future_surface_state_teacher
+    task_support: [vacant_land, construction_site, building]
+    native_labels: []
+    canonical_labels: [vacant_land, construction_site, building]
+    train_count: null
+    val_count: null
+    test_count: null
+    test_policy: undefined_until_onboarding
+    pixel_read_policy: metadata_only_until_configured
+    adapter: urban_monitor.datasets.adapters.beijing_waste_adapter.BeijingWasteAdapter
+    mapping_file: configs/label_maps/beijing_waste_template.yaml
+    spatial_resolution: unknown
+    temporal_structure: configurable
+    license_or_source_note: Placeholder only; native labels must be verified before use.
+    status: planned

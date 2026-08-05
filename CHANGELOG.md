@@ -1,5 +1,21 @@
 # Changelog
 
+## V2 multi-teacher architecture
+
+- Added explicit teacher registry and dataset × head supervision routing.
+- Added checkpoint bootstrap merge with tensor-level provenance checks.
+- Added partial fusion, tiled GeoTIFF inference, alignment, vectorization, preview and MUDI-ready features.
+- SECOND mapping pending now preserves semantic supervision while blocking directional labels.
+- Added unified development test-read guard and train-only V2 hard-example mining.
+- Added `urban-renewal-preflight` and `urban-renewal-infer`.
+- Verified one GPU Quick run without reading test data; V2 Full remains intentionally unrun.
+
+## 0.5.1 - Training-readiness hardening
+
+- Added public and personal preflight commands, Windows paths/configuration and helper scripts.
+- Isolated validation from test, made quick mode sample-bounded, and skip unsupervised public stages explicitly.
+- Added external personal `--data-root` support and deterministic GeoPackage `buildings` layer selection.
+
 ## 0.5.0 - 2026-07-19
 
 - Added independent S2Looking, SECOND and DSIFN adapters with a unified missing-supervision-aware index.

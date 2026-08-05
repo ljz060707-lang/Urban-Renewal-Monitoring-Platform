@@ -35,7 +35,7 @@ def _pr_auc(probabilities: list[np.ndarray], labels: list[np.ndarray]) -> float 
 @dataclass
 class ChangeMetricAccumulator:
     semantic_classes: int = 7
-    building_class_id: int = 1
+    building_class_id: int | None = 1
     binary: np.ndarray = field(default_factory=lambda: np.zeros(4, dtype=np.int64))
     new: np.ndarray = field(default_factory=lambda: np.zeros(4, dtype=np.int64))
     demolition: np.ndarray = field(default_factory=lambda: np.zeros(4, dtype=np.int64))
@@ -107,7 +107,7 @@ class ChangeMetricAccumulator:
                 "available": bool(self.semantic_sample_count), "supervised_samples": self.semantic_sample_count,
                 "per_class_iou": {str(index): value for index, value in enumerate(ious)},
                 "mean_iou": float(np.mean(valid)) if valid and self.semantic_sample_count else None,
-                "building_iou": ious[self.building_class_id] if self.semantic_sample_count and self.building_class_id < len(ious) else None,
+                "building_iou": ious[self.building_class_id] if self.semantic_sample_count and self.building_class_id is not None and self.building_class_id < len(ious) else None,
                 "semantic_change_accuracy": self.semantic_change_correct / self.semantic_change_total if self.semantic_change_total else None,
                 "confusion_matrix": matrix.tolist(),
             },

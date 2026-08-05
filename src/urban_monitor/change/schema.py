@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 CHANGE_INDEX_COLUMNS = [
-    "sample_id", "dataset_name", "split", "t1_path", "t2_path", "gt_cd_path",
+    "sample_id", "dataset_name", "split", "source_split", "t1_path", "t2_path", "gt_cd_path",
     "gt_new_path", "gt_dem_path", "gt_t1_path", "gt_t2_path", "has_binary",
     "has_directional", "has_semantic", "width", "height", "notes",
 ]
@@ -29,6 +29,7 @@ class ChangeSample:
     width: int = 0
     height: int = 0
     notes: str = ""
+    source_split: str = ""
 
     def to_row(self) -> dict[str, object]:
         row = asdict(self)

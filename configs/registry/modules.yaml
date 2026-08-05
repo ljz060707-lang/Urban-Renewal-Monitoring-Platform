@@ -1,0 +1,24 @@
+schema_version: "1.0"
+modules:
+  construction_activity_v1:
+    module_id: construction_activity_v1
+    release_scope: experimental_candidate
+    scientific_status: candidate_not_ground_truth
+    status: experimental_in_progress
+    current_urrs_release_unchanged: true
+    selected_temporal_integration: no_mti
+    construction_mti:
+      available: true
+      enabled: false
+      selection_status: experimental_unselected
+    audit: outputs/urrs/audits/construction_activity_20260802_111842/ONBOARDING_GATE.json
+    documentation: docs/CONSTRUCTION_ACTIVITY_V1.md
+    prohibited_claims:
+      - single_date_construction_prediction_is_urban_renewal_ground_truth
+      - cwld_engineering_facility_is_active_construction
+      - pseudo_label_is_formal_validation_ground_truth
+    test_read_guards:
+      UCS: 0
+      CWLD: 0
+      WHU: 0
+      SECOND: 0

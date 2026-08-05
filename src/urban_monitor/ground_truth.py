@@ -25,6 +25,30 @@ STANDARD_COLUMNS = [
 ]
 
 
+def read_building_labels(path: str | Path, *, building_layer: str = "buildings", rows=None) -> gpd.GeoDataFrame:
+    """Read a deterministic building layer; never guess among multiple GPKG layers."""
+    path = Path(path)
+    kwargs = {"rows": rows} if rows is not None else {}
+    if path.suffix.casefold() != ".gpkg":
+        return gpd.read_file(path, **kwargs)
+    try:
+        layers = gpd.list_layers(path)["name"].astype(str).tolist()
+    except Exception:
+        try:
+            import fiona
+            layers = list(fiona.listlayers(path))
+        except Exception as exc:
+            raise ValueError(f"Cannot list GeoPackage layers: {path}: {exc}") from exc
+    if building_layer in layers:
+        return gpd.read_file(path, layer=building_layer, **kwargs)
+    if len(layers) == 1:
+        return gpd.read_file(path, layer=layers[0], **kwargs)
+    raise ValueError(
+        f"GeoPackage {path} has multiple layers but no '{building_layer}' layer: {', '.join(layers)}. "
+        f"Rename the building layer to '{building_layer}' or set data.building_layer in project.yaml."
+    )
+
+
 @dataclass
 class GroundTruthResult:
     accepted: gpd.GeoDataFrame
@@ -172,9 +196,10 @@ def normalize_label_file(
     image_bounds: tuple[float, float, float, float],
     min_building_area_m2: float = 10.0,
     classes: list[str] | tuple[str, ...] = ("building",),
+    building_layer: str = "buildings",
 ) -> GroundTruthResult:
     return normalize_label_frame(
-        gpd.read_file(label_path),
+        read_building_labels(label_path, building_layer=building_layer),
         source_date=source_date,
         target_crs=target_crs,
         image_bounds=image_bounds,

@@ -1,0 +1,28 @@
+states:
+  - stable_building
+  - demolition_started
+  - cleared_site
+  - active_construction_exposed
+  - active_construction_dustproof
+  - foundation_or_excavation_candidate
+  - structure_rising
+  - near_completion
+  - completed_building
+  - idle_vacant
+  - waste_or_material_storage
+  - infrastructure_work
+  - unknown_state
+  - building_repair_or_refurbishment_candidate
+default_transition_cost: 4.0
+transitions:
+  - {from: stable_building, to: demolition_started, cost: 0.5}
+  - {from: demolition_started, to: cleared_site, cost: 0.5}
+  - {from: cleared_site, to: active_construction_exposed, cost: 0.5}
+  - {from: active_construction_exposed, to: active_construction_dustproof, cost: 0.5}
+  - {from: active_construction_dustproof, to: structure_rising, cost: 0.5}
+  - {from: structure_rising, to: near_completion, cost: 0.5}
+  - {from: near_completion, to: completed_building, cost: 0.5}
+  - {from: stable_building, to: building_repair_or_refurbishment_candidate, cost: 1.0}
+  - {from: building_repair_or_refurbishment_candidate, to: stable_building, cost: 1.0}
+  - {from: active_construction_exposed, to: idle_vacant, cost: 1.5}
+  - {from: active_construction_exposed, to: waste_or_material_storage, cost: 1.5}

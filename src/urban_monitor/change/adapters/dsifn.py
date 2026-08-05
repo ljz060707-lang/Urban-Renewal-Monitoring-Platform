@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-from .base import ChangeAdapter, files_by_stem, image_size, named_directory, read_binary, require_same_stems, split_directories, write_mask
+from .base import ChangeAdapter, files_by_stem, image_size, limited_stems, named_directory, read_binary, require_same_stems, split_directories, write_mask
 from ..schema import ChangeSample
 
 
@@ -12,14 +12,14 @@ class DSIFNAdapter(ChangeAdapter):
 
     def discover(self) -> list[ChangeSample]:
         records: list[ChangeSample] = []
-        for split, folder in split_directories(self.root):
+        for split, folder in split_directories(self.root, self.config.get("allowed_splits")):
             dirs = {
                 "t1": named_directory(folder, ["T1", "Image1", "A"]),
                 "t2": named_directory(folder, ["T2", "Image2", "B"]),
                 "cd": named_directory(folder, ["GT", "label", "GT_CD", "mask"]),
             }
             files = {name: files_by_stem(path) for name, path in dirs.items()}
-            for stem in require_same_stems(files):
+            for stem in limited_stems(require_same_stems(files), split, self.config):
                 width, height = image_size(files["t1"][stem])
                 records.append(ChangeSample(
                     sample_id=f"dsifn:{split}:{stem}", dataset_name=self.dataset_name, split=split,

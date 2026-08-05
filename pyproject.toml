@@ -32,6 +32,10 @@ train = [
 review = [
   "gradio>=5.0",
 ]
+ai_review = [
+  "zai-sdk",
+  "jsonschema>=4",
+]
 
 [project.scripts]
 urban-monitor = "urban_monitor.cli:main"
@@ -44,4 +48,5 @@ addopts = "-m 'not train_smoke'"
 markers = [
   "train_smoke: real Torch CPU training and inference smoke tests",
   "gpu: real CUDA training smoke tests; never mocked",
+  "integration_artifact: validates an explicitly generated read-only acceptance artifact",
 ]

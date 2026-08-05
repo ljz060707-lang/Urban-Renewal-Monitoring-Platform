@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .base import ChangeAdapter, files_by_stem, image_size, named_directory, read_binary, require_same_stems, split_directories, write_mask
+from .base import ChangeAdapter, files_by_stem, image_size, limited_stems, named_directory, read_s2looking_binary, require_same_stems, split_directories, write_mask
 from ..schema import ChangeSample
 
 
@@ -14,7 +14,7 @@ class S2LookingAdapter(ChangeAdapter):
 
     def discover(self) -> list[ChangeSample]:
         records: list[ChangeSample] = []
-        for split, folder in split_directories(self.root):
+        for split, folder in split_directories(self.root, self.config.get("allowed_splits")):
             dirs = {
                 "t1": named_directory(folder, ["Image1", "T1", "A"]),
                 "t2": named_directory(folder, ["Image2", "T2", "B"]),
@@ -23,7 +23,7 @@ class S2LookingAdapter(ChangeAdapter):
                 "dem": named_directory(folder, ["label2", "GT_DEM"]),
             }
             files = {name: files_by_stem(path) for name, path in dirs.items()}
-            for stem in require_same_stems(files):
+            for stem in limited_stems(require_same_stems(files), split, self.config):
                 width, height = image_size(files["t1"][stem])
                 records.append(ChangeSample(
                     sample_id=f"s2looking:{split}:{stem}", dataset_name=self.dataset_name, split=split,
@@ -35,9 +35,9 @@ class S2LookingAdapter(ChangeAdapter):
         return records
 
     def normalize(self, sample: ChangeSample, output_dir: Path) -> ChangeSample:
-        new = read_binary(sample.gt_new_path)
-        dem = read_binary(sample.gt_dem_path)
-        cd = read_binary(sample.gt_cd_path)
+        new = read_s2looking_binary(sample.gt_new_path)
+        dem = read_s2looking_binary(sample.gt_dem_path)
+        cd = read_s2looking_binary(sample.gt_cd_path)
         derived = np.logical_or(new, dem).astype(np.uint8)
         mismatch = float(np.mean(cd != derived))
         target = output_dir / sample.split / sample.sample_id.rsplit(":", 1)[-1]

@@ -1,0 +1,40 @@
+schema_version: "1.0"
+pixel_states:
+  - background_or_other
+  - vacant_land
+  - construction_site
+  - building
+  - unknown
+change_directions:
+  - any_change
+  - new_building
+  - demolition
+temporal_states:
+  - stable_vacant
+  - construction_candidate
+  - construction_active
+  - newly_completed_building
+  - stable_building
+  - demolition_candidate
+  - demolished
+  - redevelopment_candidate
+  - uncertain
+quality_states:
+  - usable
+  - unusable
+  - occluded
+  - registration_issue
+  - unknown_quality
+output_status:
+  - available
+  - pending
+  - unsupported
+  - unavailable
+colors:
+  any_change: "#f59e0b"
+  new_building: "#ef4444"
+  demolition: "#3b82f6"
+  vacant_land: "#92400e"
+  construction_site: "#facc15"
+  building: "#22d3ee"
+  uncertainty: "#6b7280"

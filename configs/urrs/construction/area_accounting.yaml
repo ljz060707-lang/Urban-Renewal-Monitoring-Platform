@@ -1,0 +1,4 @@
+area_discrepancy_limit: 0.05
+require_metric_projected_crs: true
+forbid_geographic_crs_square_meters: true
+area_fields: [site_envelope_area_m2, active_element_area_m2, track_union_area_m2, net_building_change_area_m2, affected_building_area_m2]

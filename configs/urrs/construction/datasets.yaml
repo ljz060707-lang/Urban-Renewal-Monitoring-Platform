@@ -1,0 +1,12 @@
+search_roots: ['D:\Dataset', 'D:\Data Set']
+ucs:
+  official_primary_record: 10.5281/zenodo.17404901
+  known_newer_record: 18997896
+  rgb_bands: [1, 2, 3]
+  rgb_band_semantics_verified: false
+  ignore_index: 255
+cwld:
+  reuse_existing_audit: true
+  engineering_facility_is_construction_site: false
+test_policy:
+  pixel_reads_during_development: 0

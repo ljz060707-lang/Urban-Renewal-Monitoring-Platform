@@ -1,0 +1,5 @@
+enabled: false
+role: candidate_roi_screening_only
+strong_positive_coverage: 0.50
+strong_negative_coverage: 0.05
+model: random_forest

@@ -16,6 +16,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "rgb_bands": [1, 2, 3],
         "min_building_area_m2": 10.0,
         "classes": ["building"],
+        "building_layer": "buildings",
     },
     "tiling": {
         "tile_size": 512,

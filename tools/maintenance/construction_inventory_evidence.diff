@@ -1,0 +1,47 @@
+--- D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\review\construction_inventory_v2.py
++++ D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\review\construction_inventory_v2.py
+@@ -21,6 +21,17 @@
+     return None, None
+ 
+ 
++def _runtime_evidence(row: dict) -> tuple[dict, list[str]]:
++    evidence = {key: dict(value) for key, value in (row.get("evidence") or {}).items()}
++    full20 = dict(evidence.get("full20") or {})
++    paths = [path for path in full20.get("paths", []) if any(token in Path(path).name.lower() for token in ("full20", "change", "new", "demolition"))]
++    full20["status"] = ("available" if paths else "unavailable") if row.get("full20_supported") else "not_applicable"
++    full20["paths"] = paths
++    evidence["full20"] = full20
++    missing = [key for key, value in evidence.items() if value.get("status") == "unavailable"]
++    return evidence, missing
++
++
+ def _from_transition_preview(review_dir: Path) -> dict | None:
+     inventory_path, preview_inventory = _latest_preview_inventory(review_dir)
+     if inventory_path is None or preview_inventory is None:
+@@ -30,10 +41,15 @@
+         grouped.setdefault(row["track_id"], []).append(row)
+     records = []
+     for track_id, rows in sorted(grouped.items()):
++        evidence_by_transition = {}
++        evidence_missing_by_transition = {}
+         preview_paths = {}
+         for row in rows:
+             preview_paths.setdefault(row["before_date"], row["raw_before_path"])
+             preview_paths.setdefault(row["after_date"], row["raw_after_path"])
++            evidence, missing = _runtime_evidence(row)
++            evidence_by_transition[row["transition"]] = evidence
++            evidence_missing_by_transition[row["transition"]] = missing
+         records.append({
+             "track_id": track_id,
+             "object_type": "construction_track",
+@@ -41,8 +57,8 @@
+             "dates": list(DATES),
+             "preview_paths": preview_paths,
+             "pair_preview_paths": {row["transition"]: row["pair_preview_path"] for row in rows},
+-            "evidence_by_transition": {row["transition"]: row.get("evidence", {}) for row in rows},
+-            "evidence_missing_by_transition": {row["transition"]: row.get("evidence_missing", []) for row in rows},
++            "evidence_by_transition": evidence_by_transition,
++            "evidence_missing_by_transition": evidence_missing_by_transition,
+             "supersedes_sample_ids": sorted({sid for row in rows for sid in row.get("supersedes_sample_ids", [])}),
+             "legacy_transition_ids": [row["sample_id"] for row in rows],
+             "pseudo_states": {date: "unknown_state" for date in DATES},

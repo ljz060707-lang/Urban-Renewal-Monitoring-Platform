@@ -1,0 +1,38 @@
+kind: joint_sample
+experiment_name: surface_state_joint_sample
+dataset_scope: cwld_official_plus_fusu_current_500_pair_sample
+candidate_scope: sample_domain_only
+validation_scope: cwld_official_and_fusu_sample_spatial_holdout
+cwld_manifest: outputs/data_audit/cwld/CWLD_MANIFEST.csv
+fusu_train_manifest: outputs/data_audit/fusu_sample/FUSU_SAMPLE_TRAIN_MANIFEST.csv
+fusu_validation_manifest: outputs/data_audit/fusu_sample/FUSU_SAMPLE_VALIDATION_MANIFEST.csv
+cwld_weight: 1.0
+fusu_weight: 1.0
+seed: 20260729
+device: cuda
+image_size: 512
+batch_size_per_dataset: 2
+gradient_accumulation_steps: 4
+num_workers: 0
+pin_memory: true
+amp: true
+epochs: 60
+early_stopping_patience: 10
+use_tfr: true
+use_change_head: true
+gradient_clip_norm: 1.0
+resume: auto
+candidate_status: surface_joint_sample_validation_candidate
+class_weight_min: 0.25
+class_weight_max: 4.0
+codec:
+  max_anchor_distance: 128.0
+  min_distance_margin: 16.0
+  ignore_index: 255
+optimizer:
+  name: adamw
+  decoder_lr: 0.0002
+  weight_decay: 0.01
+temporal:
+  num_heads: 4
+  dropout: 0.10

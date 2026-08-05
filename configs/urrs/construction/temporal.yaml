@@ -1,0 +1,12 @@
+use_tfr: true
+max_timesteps: 4
+num_heads: 4
+num_layers: 2
+dropout: 0.10
+use_relative_time_encoding: true
+return_attention_for_audit: true
+selected_construction_temporal_integration: no_mti
+construction_mti:
+  available: true
+  enabled: false
+  selection_status: experimental_unselected

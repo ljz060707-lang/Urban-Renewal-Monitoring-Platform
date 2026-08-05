@@ -1,0 +1,11 @@
+schema_version: "1.0"
+dataset_id: null
+adapter: generic_tfr
+dataset_root: null
+image_pattern: null
+label_pattern: null
+date_parser: null
+split_manifest: null
+label_mapping_file: null
+native_schema_documentation: null
+mode: configurable

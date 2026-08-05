@@ -13,10 +13,14 @@ from ..schema import ChangeSample, validate_sample
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
 
-def split_directories(root: Path) -> list[tuple[str, Path]]:
+def split_directories(root: Path, allowed_splits: Iterable[str] | None = None) -> list[tuple[str, Path]]:
     aliases = {"train": "train", "val": "val", "valid": "val", "validation": "val", "test": "test"}
     found = [(aliases[path.name.casefold()], path) for path in root.iterdir() if path.is_dir() and path.name.casefold() in aliases]
-    return sorted(found) or [("train", root)]
+    had_split_directories = bool(found)
+    if allowed_splits is not None:
+        allowed = {aliases.get(str(value).casefold(), str(value).casefold()) for value in allowed_splits}
+        found = [(split, path) for split, path in found if split in allowed]
+    return sorted(found) if had_split_directories else [("train", root)]
 
 
 def named_directory(parent: Path, names: Iterable[str], *, required: bool = True) -> Path | None:
@@ -51,6 +55,17 @@ def require_same_stems(named: dict[str, dict[str, Path]]) -> list[str]:
     return sorted(union)
 
 
+def limited_stems(stems: list[str], split: str, config: dict) -> list[str]:
+    limits = config.get("max_samples_per_split")
+    if limits is None:
+        return stems
+    if isinstance(limits, dict):
+        limit = limits.get(split, limits.get("validation" if split == "val" else split))
+    else:
+        limit = limits
+    return stems if limit in (None, "") else stems[: max(0, int(limit))]
+
+
 def image_size(path: Path) -> tuple[int, int]:
     with Image.open(path) as image:
         return image.size
@@ -69,6 +84,23 @@ def read_binary(path: Path) -> np.ndarray:
     if array.ndim != 2:
         raise ValueError(f"Binary label must be 2D: {path}")
     return (array != 0).astype(np.uint8)
+
+
+def read_s2looking_binary(path: Path) -> np.ndarray:
+    """Accept S2Looking's documented black/background + one-color foreground PNGs only."""
+    with Image.open(path) as image:
+        array = np.asarray(image)
+    if array.ndim != 3 or array.shape[2] == 1 or np.all(array == array[..., :1]):
+        return read_binary(path)
+    if array.shape[2] < 3:
+        raise ValueError(f"S2Looking label must be grayscale or RGB: {path}")
+    rgb = array[..., :3]
+    foreground = np.any(rgb != 0, axis=2)
+    if foreground.any():
+        color = rgb[foreground][0]
+        if not np.all(rgb[foreground] == color):
+            raise ValueError(f"S2Looking RGB label has more than one foreground color: {path}")
+    return foreground.astype(np.uint8)
 
 
 def write_mask(path: Path, array: np.ndarray) -> Path:

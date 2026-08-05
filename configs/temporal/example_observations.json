@@ -1,0 +1,32 @@
+{
+  "example_track_001": [
+    {
+      "date": "2019-01-01",
+      "vacant_probability": 0.80,
+      "construction_probability": 0.10,
+      "building_probability": 0.10,
+      "quality": "usable"
+    },
+    {
+      "date": "2020-01-01",
+      "vacant_probability": 0.10,
+      "construction_probability": 0.82,
+      "building_probability": 0.08,
+      "quality": "usable"
+    },
+    {
+      "date": "2021-01-01",
+      "vacant_probability": 0.05,
+      "construction_probability": 0.12,
+      "building_probability": 0.83,
+      "quality": "usable"
+    },
+    {
+      "date": "2022-01-01",
+      "vacant_probability": 0.04,
+      "construction_probability": 0.06,
+      "building_probability": 0.90,
+      "quality": "usable"
+    }
+  ]
+}

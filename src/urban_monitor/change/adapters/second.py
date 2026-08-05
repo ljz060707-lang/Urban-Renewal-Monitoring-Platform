@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from .base import ChangeAdapter, files_by_stem, image_size, named_directory, read_binary, require_same_stems, split_directories, write_mask
+from .base import ChangeAdapter, files_by_stem, image_size, limited_stems, named_directory, read_binary, require_same_stems, split_directories, write_mask
 from ..schema import ChangeSample
 
 
@@ -55,13 +55,18 @@ class SECONDAdapter(ChangeAdapter):
     def __init__(self, root: str | Path, config: dict | None = None):
         super().__init__(root, config)
         self.building_class_id = self.config.get("building_class_id")
-        if self.building_class_id is None:
-            raise ValueError("SECOND building_class_id must be explicitly confirmed")
+        self.mapping_verified = (
+            bool(self.config["mapping_verified"])
+            if "mapping_verified" in self.config
+            else self.building_class_id is not None
+        )
+        if self.mapping_verified and self.building_class_id is None:
+            raise ValueError("SECOND mapping_verified=true requires building_class_id")
         self.color_mapping = load_color_mapping(self.config.get("class_mapping_file"))
 
     def discover(self) -> list[ChangeSample]:
         records: list[ChangeSample] = []
-        for split, folder in split_directories(self.root):
+        for split, folder in split_directories(self.root, self.config.get("allowed_splits")):
             dirs = {
                 "t1": named_directory(folder, ["T1", "Image1", "A"]),
                 "t2": named_directory(folder, ["T2", "Image2", "B"]),
@@ -72,13 +77,13 @@ class SECONDAdapter(ChangeAdapter):
             files = {name: files_by_stem(path) for name, path in dirs.items()}
             if cd_dir:
                 files["cd"] = files_by_stem(cd_dir)
-            for stem in require_same_stems(files):
+            for stem in limited_stems(require_same_stems(files), split, self.config):
                 width, height = image_size(files["t1"][stem])
                 records.append(ChangeSample(
                     sample_id=f"second:{split}:{stem}", dataset_name=self.dataset_name, split=split,
                     t1_path=files["t1"][stem], t2_path=files["t2"][stem],
                     gt_cd_path=files.get("cd", {}).get(stem), gt_t1_path=files["gt1"][stem], gt_t2_path=files["gt2"][stem],
-                    has_binary=True, has_directional=True, has_semantic=True, width=width, height=height,
+                    has_binary=True, has_directional=self.mapping_verified, has_semantic=True, width=width, height=height,
                 ))
         if not records:
             raise ValueError(f"second: no samples found under {self.root}")
@@ -106,15 +111,50 @@ class SECONDAdapter(ChangeAdapter):
             mismatch = float(np.mean(cd != provided))
         else:
             mismatch = 0.0
-        building = int(self.building_class_id)
-        new = np.logical_and(gt1 != building, gt2 == building).astype(np.uint8)
-        dem = np.logical_and(gt1 == building, gt2 != building).astype(np.uint8)
         target = output_dir / sample.split / sample.sample_id.rsplit(":", 1)[-1]
         paths = {
             "gt_cd_path": write_mask(target.with_name(target.name + "_cd.png"), cd),
-            "gt_new_path": write_mask(target.with_name(target.name + "_new.png"), new),
-            "gt_dem_path": write_mask(target.with_name(target.name + "_dem.png"), dem),
             "gt_t1_path": write_mask(target.with_name(target.name + "_t1.png"), gt1),
             "gt_t2_path": write_mask(target.with_name(target.name + "_t2.png"), gt2),
         }
-        return replace(sample, **paths, notes=f"provided_cd_mismatch={mismatch:.8f}")
+        if self.mapping_verified:
+            building = int(self.building_class_id)
+
+            # SECOND semantic void / ignore pixels must never become
+            # directional building supervision.
+            ignore_index = int(self.config.get("semantic_ignore_index", self.config.get("ignore_index", 255)))
+
+            valid = (
+                (gt1 != ignore_index)
+                & (gt2 != ignore_index)
+            )
+
+            new = (
+                valid
+                & (gt1 != building)
+                & (gt2 == building)
+            ).astype(np.uint8)
+
+            dem = (
+                valid
+                & (gt1 == building)
+                & (gt2 != building)
+            ).astype(np.uint8)
+
+            paths["gt_new_path"] = write_mask(
+                target.with_name(target.name + "_new.png"),
+                new,
+            )
+
+            paths["gt_dem_path"] = write_mask(
+                target.with_name(target.name + "_dem.png"),
+                dem,
+            )
+            paths["gt_new_path"] = write_mask(target.with_name(target.name + "_new.png"), new)
+            paths["gt_dem_path"] = write_mask(target.with_name(target.name + "_dem.png"), dem)
+        return replace(
+            sample,
+            **paths,
+            has_directional=self.mapping_verified,
+            notes=f"provided_cd_mismatch={mismatch:.8f};mapping_verified={self.mapping_verified}",
+        )

@@ -1,0 +1,15 @@
+schema_version: "1.0"
+dataset_id: beijing_waste_future
+adapter: beijing_waste
+dataset_root: null
+image_pattern: null
+label_pattern: null
+date_parser: null
+split_manifest: null
+label_mapping_file: configs/label_maps/beijing_waste_template.yaml
+quality_metadata: null
+crs_required: true
+mode: single_date
+training:
+  smoke_epochs: 1
+  full_epochs: 30

@@ -1,0 +1,74 @@
+{
+  "status": "ready",
+  "executed_at": "2026-07-26T04:54:32.213915+00:00",
+  "teachers": {
+    "dsifn": {
+      "name": "dsifn",
+      "role": "any_change",
+      "status": "ready",
+      "dataset_root": "D:\\Data Set\\DSIFN-Dataset",
+      "checkpoint": "outputs\\pretraining\\change\\20260725_232317\\checkpoints\\best_binary_change.pth",
+      "checkpoint_sha256": "d458e9b6bed969fcf79a38603608834b5bcafd8c055ba6b61ffcba8387819210",
+      "outputs": [
+        "any_change_probability",
+        "any_change_mask"
+      ],
+      "details": {}
+    },
+    "s2looking": {
+      "name": "s2looking",
+      "role": "building_direction",
+      "status": "ready",
+      "dataset_root": "D:\\Data Set\\S2Looking",
+      "checkpoint": "outputs\\pretraining\\change_s2looking\\20260721_232528\\checkpoints\\best_directional_change.pth",
+      "checkpoint_sha256": "706c370608ae8108bd22e19cb65c00aa747c1e2107eec4a48ebccc11944ed052",
+      "outputs": [
+        "building_change_probability",
+        "new_building_probability",
+        "demolition_probability"
+      ],
+      "details": {}
+    },
+    "second": {
+      "name": "second",
+      "role": "semantic_change",
+      "status": "missing",
+      "dataset_root": "D:\\Data Set\\SECOND",
+      "checkpoint": null,
+      "checkpoint_sha256": null,
+      "outputs": [
+        "semantic_t1",
+        "semantic_t2",
+        "semantic_transition"
+      ],
+      "details": {}
+    },
+    "rsbuilding": {
+      "name": "rsbuilding",
+      "role": "building_geometry",
+      "status": "missing",
+      "dataset_root": "D:\\Data Set\\RSBuilding",
+      "checkpoint": null,
+      "checkpoint_sha256": null,
+      "outputs": [
+        "building_t1_probability",
+        "building_t2_probability",
+        "building_t1_mask",
+        "building_t2_mask",
+        "building_boundary"
+      ],
+      "details": {}
+    }
+  },
+  "readiness": {
+    "READY_FOR_PARTIAL_INFERENCE": true,
+    "READY_FOR_V2_QUICK": true,
+    "READY_FOR_V2_FULL": false,
+    "READY_FOR_FULL_FUSION": false
+  },
+  "test_images_read": 0,
+  "warnings": [
+    "SECOND dataset missing; semantic outputs will be PENDING",
+    "RSBuilding export unavailable; building geometry will be PENDING"
+  ]
+}

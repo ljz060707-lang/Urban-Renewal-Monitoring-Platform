@@ -1,0 +1,18 @@
+--- D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\review\transition_preview_v2.py
++++ D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\review\transition_preview_v2.py
+@@ -202,12 +202,13 @@
+     }
+     building_paths = sorted({path for sources in geometry.values() for path in _existing_paths(sources)})
+     transition_sources = original_rows.get(sample_id, {}).get("source_paths", {})
+-    full20_paths = _existing_paths(transition_sources)
++    full20_sources = {key: value for key, value in transition_sources.items() if any(token in str(key).lower() for token in ("full20", "change", "new", "demolition"))}
++    full20_paths = _existing_paths(full20_sources)
+     return {
+         "raw_before_after": {"status": "available", "dates": [before, after]},
+         "building_geometry": {"status": "available" if building_paths else "unavailable", "paths": building_paths},
+         "construction_elements": {"status": "unavailable", "paths": [], "reason": "formal Construction pixel model is blocked by onboarding Gate"},
+-        "full20": {"status": "available" if full20_supported and full20_paths else "unavailable", "paths": full20_paths},
++        "full20": {"status": "available" if full20_supported and full20_paths else ("unavailable" if full20_supported else "not_applicable"), "paths": full20_paths},
+         "tfr": {"status": "unavailable", "paths": [], "reason": "human temporal labels and formal TFR validation are not available"},
+         "parcel_boundary": {"status": "unavailable", "paths": []},
+         "building_boundary": {"status": "available" if building_paths else "unavailable", "paths": building_paths},

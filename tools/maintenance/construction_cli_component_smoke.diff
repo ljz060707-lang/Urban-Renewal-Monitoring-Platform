@@ -1,0 +1,28 @@
+--- D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\construction\cli.py
++++ D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\construction\cli.py
+@@ -7,6 +7,7 @@
+ from urban_renewal.pipelines.construction_temporal_pipeline import temporal_status
+ from urban_renewal.pipelines.construction_tongzhou_pipeline import tongzhou_status
+ from urban_renewal.pipelines.construction_training_pipeline import formal_train_guard, run_20_step_smoke, run_dataloader_smoke
++from urban_renewal.pipelines.construction_component_smoke import run_component_smoke
+ from urban_renewal.review.transition_workflow import run_transition_review_migration
+ from urban_renewal.review.transition_preview import diagnose_transition_previews, regenerate_transition_previews
+ from urban_renewal.review.transition_inventory import build_transition_track_inventory
+@@ -27,6 +28,7 @@
+     tongzhou = actions.add_parser("tongzhou"); tongzhou.add_argument("tongzhou_action", choices=["run"])
+     screening = actions.add_parser("screening"); screening.add_argument("screening_action", choices=["train"])
+     smoke = actions.add_parser("smoke"); smoke.add_argument("--device", default="auto"); smoke.add_argument("--dataloader-only", action="store_true")
++    component_smoke = actions.add_parser("component-smoke"); component_smoke.add_argument("--output-dir")
+     actions.add_parser("status")
+     review = actions.add_parser("review")
+     review.add_argument("review_action", choices=["migrate", "transition-diagnose", "transition-preview", "transition-inventory", "status"])
+@@ -57,6 +59,9 @@
+         return audit_data(root, output_dir=output_dir, roots=roots)
+     if command == "smoke":
+         return run_dataloader_smoke(root) if args.dataloader_only else run_20_step_smoke(root, device=args.device)
++    if command == "component-smoke":
++        output_dir = Path(args.output_dir) if getattr(args, "output_dir", None) else None
++        return run_component_smoke(root, output_dir=output_dir)
+     if command == "train":
+         if args.smoke:
+             return run_20_step_smoke(root, device=args.device)

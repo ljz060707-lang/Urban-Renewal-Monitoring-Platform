@@ -6,3 +6,19 @@ data/*
 !data/example/
 *.pth
 *.pt
+.env
+review/ai_cache/
+review/ai_inputs/
+review/glm_scores.jsonl
+
+# Local runtime, editor, profiling, and test artifacts
+.venv-gpu/
+.vscode/
+.pbt-*/
+.pytest*/
+.test_tmp*/
+.tmp*/
+.urrs-*/
+pytest_tmp/
+.patch_probe
+*.bak

@@ -1,0 +1,33 @@
+kind: joint_sample
+experiment_name: joint_probe_control_check
+dataset_scope: control_check_only
+candidate_scope: smoke_only_not_registerable
+validation_scope: cwld_official_and_fusu_sample_holdout
+cwld_manifest: outputs/data_audit/cwld/CWLD_MANIFEST.csv
+fusu_train_manifest: outputs/data_audit/fusu_sample/FUSU_SAMPLE_TRAIN_MANIFEST.csv
+fusu_validation_manifest: outputs/data_audit/fusu_sample/FUSU_SAMPLE_VALIDATION_MANIFEST.csv
+seed: 20260729
+device: cpu
+image_size: 32
+batch_size_per_dataset: 64
+gradient_accumulation_steps: 1
+num_workers: 0
+pin_memory: false
+amp: false
+epochs: 2
+early_stopping_patience: 2
+use_tfr: false
+use_change_head: true
+gradient_clip_norm: 1.0
+resume: auto
+candidate_status: smoke_only
+class_weight_min: 0.25
+class_weight_max: 4.0
+codec:
+  max_anchor_distance: 128.0
+  min_distance_margin: 16.0
+  ignore_index: 255
+optimizer:
+  name: adamw
+  decoder_lr: 0.0002
+  weight_decay: 0.01

@@ -1,0 +1,29 @@
+kind: fusu_sample
+experiment_name: fusu_500_sample_semantic_baseline
+dataset_scope: current_500_pair_sample
+candidate_scope: sample_domain_only
+validation_scope: sample_spatial_holdout
+fusu_train_manifest: outputs/data_audit/fusu_sample/FUSU_SAMPLE_TRAIN_MANIFEST.csv
+fusu_validation_manifest: outputs/data_audit/fusu_sample/FUSU_SAMPLE_VALIDATION_MANIFEST.csv
+seed: 20260729
+device: cuda
+image_size: 512
+batch_size: 2
+gradient_accumulation_steps: 4
+num_workers: 0
+pin_memory: true
+amp: true
+epochs: 60
+early_stopping_patience: 10
+validation_every_epochs: 1
+use_tfr: false
+use_change_head: true
+sample_validation_is_not_full_fusu: true
+gradient_clip_norm: 1.0
+resume: auto
+candidate_status: fusu_sample_validation_candidate
+optimizer:
+  name: adamw
+  decoder_lr: 0.0002
+  weight_decay: 0.01
+

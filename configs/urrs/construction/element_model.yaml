@@ -1,0 +1,11 @@
+architecture: ConstructionElementNet
+encoder: project_stable_lightweight_conv
+pretrained: false
+download_weights: false
+input:
+  rgb: true
+  texture: deterministic_grayscale_if_external_unavailable
+loss:
+  ucs: {ce: 1.0, dice: 0.75, boundary: 0.25, uncertainty: 0.10}
+  cwld: {weighted_ce: 1.0, dice: 0.75, boundary: 0.20}
+joint_batch_ratio: {ucs: 3, cwld: 1}

@@ -1,0 +1,93 @@
+model:
+  name: URRS-Construction-UCS386-v1.0-task-candidate
+  type: research_task_model_candidate
+  architecture: ConstructionElementNet
+  width: 24
+  scientific_status: candidate_not_ground_truth
+  production_ready: false
+  national_generalization_verified: false
+
+dataset:
+  dataset_id: UCS-386-available-image-subset
+  ucs_root: D:/Data Set/URS/600 manually delineated UCS labels part2
+  split_audit_glob: outputs/urrs/audits/ucs386_subset_readiness_*
+  train_manifest: UCS_TRAIN_MANIFEST.csv
+  validation_manifest: UCS_VALIDATION_MANIFEST.csv
+  locked_test_manifest: UCS_TEST_LOCKED_MANIFEST.csv
+  train_count: 296
+  validation_count: 44
+  locked_test_count: 46
+  missing_full_record: 214
+  full_record_total: 600
+  rgb_mapping: [3, 2, 1]
+  rgb_semantic_order: [R, G, B]
+  ignore_index: 255
+  class_names: [ucs_background, ucs_exposed_area, ucs_dustproof_net, ucs_building]
+  image_size: 256
+
+training:
+  seed: 20260803
+  device: cuda
+  batch_size: 2
+  gradient_accumulation_steps: 1
+  num_workers: 0
+  max_epochs: 80
+  patience: 12
+  validation_each_epoch: true
+  amp: true
+  gradient_clip_norm: 1.0
+  learning_rate: 0.0003
+  weight_decay: 0.01
+  checkpoint_period_epochs: 10
+  loss:
+    ucs_ce: 1.0
+    ucs_dice: 0.75
+    ucs_boundary: 0.25
+    ucs_uncertainty: 0.10
+    ignore_index: 255
+  selection_score:
+    non_background_miou: 0.50
+    non_background_macro_f1: 0.25
+    boundary_f1: 0.15
+    one_minus_uncertainty_ece: 0.10
+  auto_oom_fallback:
+    enabled: true
+    batch_size_floor: 1
+    accumulation_ceiling: 16
+    image_size_floor: 128
+  initialization_screen:
+    epochs: 3
+    image_size: 128
+    batch_size: 2
+    candidates:
+      - name: current_registered_cwld_construction_compatible_encoder
+        path: outputs/training/construction_activity_v1/smoke_20260802_124909/checkpoints/smoke_checkpoint.pth
+        expected_architecture: ConstructionElementNet
+        registry_status: not_registered_smoke_only
+      - name: current_registered_surface_joint_compatible_encoder
+        path: outputs/training/surface_state_v1/joint_probes_20260730_034853/probe_cwld/checkpoints/surface_joint_sample_best_validation.pth
+        expected_architecture: SurfaceJointModel
+        registry_status: validation_candidate
+  stage_b_joint:
+    enabled: false
+    reason: optional_stage_not_enabled_for_first_UCS_task_candidate
+    ucs_to_cwld_loss_ratio: [3, 1]
+    max_epochs: 30
+    patience: 8
+
+selection:
+  reject_all_background: true
+  reject_nan: true
+  reject_bad_boundary: true
+  reject_uncertainty_failure: true
+  test_used_for_selection: false
+
+scope:
+  full_ucs_training: false
+  subset_training: true
+  full_record_coverage: 386/600
+  missingness_bias_not_ruled_out: true
+  national_generalization_verified: false
+  license_status: confirmed_training_allowed
+  license_source: explicit_user_confirmation
+

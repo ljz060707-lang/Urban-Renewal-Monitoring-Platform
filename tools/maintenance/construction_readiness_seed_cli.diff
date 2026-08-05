@@ -1,0 +1,36 @@
+--- D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\construction\cli.py
++++ D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\construction\cli.py
+@@ -8,6 +8,8 @@
+ from urban_renewal.pipelines.construction_tongzhou_pipeline import tongzhou_status
+ from urban_renewal.pipelines.construction_training_pipeline import formal_train_guard, run_20_step_smoke, run_dataloader_smoke
+ from urban_renewal.pipelines.construction_component_smoke import run_component_smoke
++from urban_renewal.construction.formal_readiness import build_formal_training_readiness
++from urban_renewal.review.seed_temporal import create_seed_temporal_inventory
+ from urban_renewal.review.transition_workflow import run_transition_review_migration
+ from urban_renewal.review.transition_preview import diagnose_transition_previews, regenerate_transition_previews
+ from urban_renewal.review.transition_inventory import build_transition_track_inventory
+@@ -29,6 +31,8 @@
+     screening = actions.add_parser("screening"); screening.add_argument("screening_action", choices=["train"])
+     smoke = actions.add_parser("smoke"); smoke.add_argument("--device", default="auto"); smoke.add_argument("--dataloader-only", action="store_true")
+     component_smoke = actions.add_parser("component-smoke"); component_smoke.add_argument("--output-dir")
++    readiness = actions.add_parser("readiness"); readiness.add_argument("--audit-dir"); readiness.add_argument("--output-dir")
++    seed_temporal = actions.add_parser("seed-temporal"); seed_temporal.add_argument("seed_action", choices=["build"]); seed_temporal.add_argument("--review-dir"); seed_temporal.add_argument("--output-dir")
+     actions.add_parser("status")
+     review = actions.add_parser("review")
+     review.add_argument("review_action", choices=["migrate", "transition-diagnose", "transition-preview", "transition-inventory", "status"])
+@@ -62,6 +66,15 @@
+     if command == "component-smoke":
+         output_dir = Path(args.output_dir) if getattr(args, "output_dir", None) else None
+         return run_component_smoke(root, output_dir=output_dir)
++    if command == "readiness":
++        audits = sorted((root / "outputs" / "urrs" / "audits").glob("construction_activity_*"))
++        audit_dir = Path(args.audit_dir) if getattr(args, "audit_dir", None) else audits[-1]
++        output_dir = Path(args.output_dir) if getattr(args, "output_dir", None) else None
++        return build_formal_training_readiness(audit_dir, output_dir=output_dir)
++    if command == "seed-temporal":
++        review_dir = Path(args.review_dir) if getattr(args, "review_dir", None) else root / "outputs" / "urrs" / "review" / "tongzhou_20260801"
++        output_dir = Path(args.output_dir) if getattr(args, "output_dir", None) else root / "outputs" / "urrs" / "construction" / ("human_seed_labels_" + __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S"))
++        return create_seed_temporal_inventory(review_dir, output_dir)
+     if command == "train":
+         if args.smoke:
+             return run_20_step_smoke(root, device=args.device)

@@ -1,0 +1,9 @@
+thresholds:
+  exposed_ground_evidence: 0.5
+  dustproof_net_evidence: 0.5
+  engineering_facility_evidence: 0.5
+  material_debris_evidence: 0.5
+uncertainty_limit: 0.5
+minimum_area_m2: 10.0
+connectivity: 8
+max_simplification_area_loss: 0.02

@@ -1,0 +1,11 @@
+schema_version: "1.0"
+verified: false
+dataset_id: beijing_waste_future
+notes: Replace placeholders only after reading the dataset's authoritative label specification.
+mappings: []
+canonical_classes:
+  - background_or_other
+  - vacant_land
+  - construction_site
+  - building
+  - unknown

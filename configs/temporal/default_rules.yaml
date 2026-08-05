@@ -1,0 +1,9 @@
+schema_version: "1.0"
+min_consecutive_observations: 2
+min_elapsed_days: 180
+min_stable_building_observations: 2
+min_stable_vacant_observations: 2
+max_gap_days: 550
+probability_threshold: 0.55
+quality_states_allowed_for_presence: [usable, unknown_quality]
+quality_states_allowed_for_absence: [usable]

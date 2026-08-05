@@ -1,159 +1,108 @@
 # 城市更新遥感监测平台
 
-把多期高分辨率影像和建筑 Ground Truth 放入指定文件夹，运行一条命令，即可训练建筑识别模型并生成跨期城市更新结果。
+本仓库有两套独立教师：公共双时相变化教师，以及个人小片区建筑实例教师。原始数据不会被修改，也不要提交到 Git。
 
-最常用流程：
+## 项目总览与权威清单
 
-```text
-数据：data/<aoi_id>/images/ 和 data/<aoi_id>/labels/
-安装：pip install -e ".[train]"
-运行：python run.py all --aoi beijing_demo
-结果：outputs/beijing_demo/latest.json
-```
-
-v0.5 另提供独立的双时相变化教师，用 S2Looking、SECOND、DSIFN 做 GPU 预训练。它不会替换 v0.4 的建筑实例教师。
-
-## 1. 安装
-
-Windows PowerShell：
+项目现已使用统一注册表管理模型、数据集、历史实验和可视化资产。先运行：
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
+python run.py project-status
+python run.py model-list
+python run.py dataset-list
+python run.py build-gallery
+```
+
+本地状态页位于 `outputs/catalog/project_dashboard.html`，可视化库位于
+`outputs/catalog/visual_gallery.html`。Full20 当前是 `validation_candidate`，
+不是经过独立 Test 证明的最终模型；北京通州输出是 candidate
+building-change objects，不是确认建筑统计。
+
+架构与安全边界见 [项目概览](docs/PROJECT_OVERVIEW.md)、
+[Test 安全策略](docs/TEST_SAFETY_POLICY.md) 和
+[数据集接入指南](docs/DATASET_ONBOARDING.md)。本轮真实核验结果见
+[注册与架构重构验收](docs/PROJECT_REGISTRY_ACCEPTANCE.md)。
+
+## 路线 A：公共变化教师
+
+数据位置：
+
+```text
+D:\Data Set\S2Looking
+D:\Data Set\SECOND
+D:\Data Set\DSIFN
+```
+
+先使用 Windows 配置和体检：
+
+```powershell
+python run.py change-preflight --config configs/change_public_windows.yaml
+python run.py change-all --config configs/change_public_windows.yaml --device cuda:0 --quick
+python run.py change-all --config configs/change_public_windows.yaml --device cuda:0
+```
+
+正式训练强制 CUDA；CPU 只允许 `python run.py change-demo --device cpu --force`。SECOND 的建筑类别和 RGB 映射绝不自动猜测。详细步骤见 [公共训练指南](docs/01_PUBLIC_DATASET_TRAINING_WINDOWS.md)。
+
+## 路线 B：个人小片区建筑教师
+
+默认仓库内目录为 `data/beijing_demo/`；也可将 AOI 数据保留在外部磁盘并通过 `--data-root` 指定。
+
+数据位置：
+
+```text
+D:\Data Set\Personal\nanjing_pilot\
+├── images\2022-04-01.tif
+├── labels\2022-04-01.gpkg
+└── project.yaml                 # 可选
+```
+
+每期只需一个同日期 GPKG，优先图层名 `buildings`，且可以只含 `geometry`。运行：
+
+```powershell
+python run.py personal-preflight --aoi nanjing_pilot --data-root "D:/Data Set/Personal"
+python run.py all --aoi nanjing_pilot --data-root "D:/Data Set/Personal"
+```
+
+默认仍是仓库内 `data/<aoi_id>`，因此旧命令 `python run.py all --aoi beijing_demo` 保持有效。详细标注流程见 [QGIS + GeoOSAM 指南](docs/02_PERSONAL_QGIS_GEOOSAM_WORKFLOW.md)。
+
+## 安装
+
+先在 PowerShell 执行 `nvidia-smi`。CUDA 用户按照 [PyTorch 官方安装选择器](https://pytorch.org/get-started/locally/) 安装与驱动匹配的 Torch/torchvision，确认 CUDA 后再安装其余项目依赖，避免 pip 覆盖 CUDA Torch：
+
+```powershell
+py -3.11 -m venv .venv-gpu
+.\.venv-gpu\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -e ".[train]"
+# 按 PyTorch 官方选择器安装 torch 与 torchvision
+pip install -e . --no-deps
+pip install PyYAML numpy pandas rasterio geopandas shapely pyproj scipy Pillow opencv-python-headless scikit-image pycocotools tqdm tensorboard
+python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'NO CUDA')"
 ```
 
-Linux / WSL：
+CPU 或 demo 环境可使用 `pip install -e ".[train]"`。
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -e ".[train]"
+## 输出
+
+- 公共教师：`outputs/pretraining/change/latest.json`、`checkpoints/`、`metrics/`、`training_dashboard.html`、`review/index.html`。
+- 个人 AOI：`outputs/<aoi_id>/latest.json`、`training/checkpoints/best.pth`、`evaluation/`、`predictions/`、`tracking/`、`review/`。
+
+## Windows 脚本
+
+`scripts/windows/` 提供环境检查、公共 preflight/quick/full 与个人 preflight/all。所有脚本在仓库根目录运行，路径含空格已引用，且不会自动删除输出或启动 full 训练。
+
+## 常见 blocker
+
+- **SECOND 映射未确认**：填写真实 `building_class_id`、RGB `class_mapping_file`，再将 `mapping_verified: true`。
+- **没有 validation**：默认不使用 test；仅临时设置 `use_test_as_validation: true` 才可继续，并会写入报告。
+- **GPKG 多图层**：重命名建筑图层为 `buildings`，或在 `project.yaml` 设置 `data.building_layer`。
+- **CUDA OOM**：auto 只尝试 16、8、4、2、1；仍失败请降低 `patch_size`。
+## V2 多教师城市更新推理
+
+V2 将 DSIFN 的任意变化、S2Looking 的建筑方向变化、可选 SECOND 语义变化和可选 RSBuilding 建筑几何组合起来。缺失教师不会阻断已有能力，缺失结果会显示 `PENDING`。
+
+```powershell
+python run.py urban-renewal-preflight
+python run.py urban-renewal-infer --t1 "D:/Data Set/Satellite/pilot_01/T1.tif" --t2 "D:/Data Set/Satellite/pilot_01/T2.tif" --output "D:/Data Set/Satellite/pilot_01/results" --device cuda:0
 ```
 
-CPU 用户可直接安装。CUDA 用户应先按 [PyTorch 官方安装页](https://pytorch.org/get-started/locally/) 安装与显卡驱动匹配的 Torch/torchvision，再执行：
-
-```bash
-pip install -e ".[train]" --no-deps
-```
-
-可选交互审核工具：
-
-```bash
-pip install -e ".[review]"
-```
-
-## 2. 放入本地 AOI 数据
-
-只要求 `images` 和 `labels`：
-
-```text
-data/beijing_demo/
-├── images/
-│   ├── 2022-04-01.tif
-│   ├── 2023-04-01.tif
-│   └── 2024-04-01.tif
-└── labels/
-    ├── 2022-04-01.gpkg
-    ├── 2023-04-01.gpkg
-    └── 2024-04-01.gpkg
-```
-
-- 影像和标签使用相同日期命名。
-- 标签优先使用 GPKG，可以只有 geometry。
-- 影像和标签必须带真实 CRS。
-- 不要把高德 GCJ-02 或百度 BD-09 图层直接当作 WGS84 Ground Truth。
-- 不需要手写 manifest；可选 `project.yaml` 只用于覆盖默认值。
-
-## 3. 一键运行建筑实例教师
-
-```bash
-python run.py doctor
-python run.py all --aoi beijing_demo
-```
-
-系统自动完成发现、manifest、CRS 对齐、GT 校验、空间划分、切片、COCO、Mask R-CNN 训练、验证、全图预测、tracking、lineage、review 和报告。
-
-结果由 `outputs/beijing_demo/latest.json` 指向，常用文件为：
-
-```text
-training/checkpoints/best.pth
-evaluation/evaluation_summary.md
-predictions/
-tracking/
-review/index.html
-RUN_MANIFEST.json
-```
-
-## 4. 公共变化模型 GPU 预训练
-
-1. 把数据集真实路径写入 `configs/change_public.yaml`，并设置 `enabled: true`。
-2. SECOND 必须明确 `building_class_id`；RGB 标签还必须提供经过确认的 `class_mapping_file`。
-3. 运行：
-
-```bash
-python run.py change-doctor --config configs/change_public.yaml
-python run.py change-all --config configs/change_public.yaml --device cuda:0
-```
-
-正式 `change-train` / `change-all` 强制 CUDA，不会静默回退 CPU。仅以下网络无关 demo 允许 CPU：
-
-```bash
-python run.py change-demo --device cpu
-```
-
-公共训练输出：
-
-```text
-outputs/pretraining/change/latest.json
-checkpoints/best_binary_change.pth
-checkpoints/best_semantic_change.pth
-checkpoints/best_directional_change.pth
-training_dashboard.html
-review/index.html
-```
-
-## 5. 审核、修正与本地微调
-
-```bash
-python run.py change-review --run latest --config configs/change_public.yaml
-python run.py change-review --run latest --config configs/change_public.yaml --interactive
-python run.py change-retrain --run latest --from-review --device cuda:0
-python run.py change-labels --aoi beijing_demo
-python run.py change-finetune --aoi beijing_demo --checkpoint latest-directional --device cuda:0
-```
-
-静态审核页无需服务即可打开。修正 mask 写入 `review/corrections/`，不会修改原始公共数据。`exclude`、`misregistration` 和未修正的 `label_error` 不进入重训；联合审核中的 `rejected` 不进入学生标签。
-
-本地 `change-labels` 只生成候选。人工确认前，它们不是 Ground Truth，也不能用于 fine-tune。
-
-## 6. 常用命令
-
-```bash
-python run.py prepare --aoi beijing_demo
-python run.py train --aoi beijing_demo --resume
-python run.py predict --aoi beijing_demo
-python run.py all --aoi beijing_demo --force
-python run.py change-prepare --config configs/change_public.yaml
-python run.py change-train --config configs/change_public.yaml --stage directional --device cuda:0
-```
-
-## 7. 常见错误
-
-- **CRS 缺失**：在 QGIS 中确认真实 CRS 后重新导出，不要随意指定为 WGS84。
-- **日期不对应**：检查影像与标签文件名；同日冲突会明确报错。
-- **CUDA 不可用**：运行 `change-doctor`，检查 Torch 是否为 CUDA 构建以及 `nvidia-smi` 是否可见。
-- **CUDA OOM**：减小 patch 或 batch；`batch_size: auto` 只有限尝试 16、8、4、2、1。
-- **SECOND RGB 映射缺失**：系统拒绝猜测类别颜色，必须提供经确认的映射文件。
-- **验证监督缺失**：系统输出 `available: false`，不会报告伪造的 0 分。
-- **公共数据许可**：先阅读 [docs/PUBLIC_DATASETS.md](docs/PUBLIC_DATASETS.md)，不要默认允许商业用途。
-
-## 8. 技术文档
-
-- [本地 AOI 与 v0.4 技术参考](docs/TECHNICAL_REFERENCE.md)
-- [变化教师结构与训练](docs/CHANGE_TEACHER_TECHNICAL.md)
-- [公共数据集与许可](docs/PUBLIC_DATASETS.md)
-- [人工审核和修正回流](docs/HUMAN_REVIEW_WORKFLOW.md)
-- [Ground Truth 规范](GROUND_TRUTH_SPEC.md)
+架构、监督矩阵、GeoTIFF 输出和 test 隔离规则见 [V2 架构说明](docs/V2_ARCHITECTURE.md)。

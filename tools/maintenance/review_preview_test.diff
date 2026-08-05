@@ -1,0 +1,16 @@
+--- D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\tests\unit\review\test_transition_preview_v2.py
++++ D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\tests\unit\review\test_transition_preview_v2.py
+@@ -100,7 +100,12 @@
+         "manifest_band_count_three_default"
+     }
+     assert all(row["preview_quality"]["nonzero_fraction"] > 0 for row in inventory["records"])
+-    assert len({row["source_metadata"]["before"]["source_sha256"] for row in inventory["records"]}) == 4
++    source_hashes = {
++        row["source_metadata"][side]["source_sha256"]
++        for row in inventory["records"]
++        for side in ("before", "after")
++    }
++    assert len(source_hashes) == 4
+     assert all(row["review_allowed"] is False for row in inventory["records"])
+     assert all("full20" not in row["evidence_missing"] for row in inventory["records"] if not row["full20_supported"])
+ 

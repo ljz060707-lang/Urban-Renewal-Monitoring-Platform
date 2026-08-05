@@ -1,0 +1,23 @@
+kind: tfr_sample
+experiment_name: tfr_sample_mini_epoch_test
+dataset_scope: current_500_pair_sample
+candidate_scope: sample_domain_only
+validation_scope: sample_spatial_holdout
+fusu_train_manifest: outputs/data_audit/fusu_sample/FUSU_SAMPLE_TRAIN_MANIFEST.csv
+fusu_validation_manifest: outputs/data_audit/fusu_sample/FUSU_SAMPLE_VALIDATION_MANIFEST.csv
+seed: 20260729
+device: cpu
+image_size: 64
+batch_size: 2
+gradient_accumulation_steps: 1
+pin_memory: false
+amp: false
+epochs: 1
+early_stopping_patience: 1
+use_tfr: true
+use_change_head: true
+gradient_clip_norm: 1.0
+resume: auto
+candidate_status: tfr_sample_validation_candidate
+optimizer: {decoder_lr: 0.0002, weight_decay: 0.01}
+temporal: {num_heads: 4, dropout: 0.10}

@@ -1,0 +1,3 @@
+model_preference: [lightgbm_if_installed, hist_gradient_boosting]
+label_sources_for_metrics: [official_ground_truth, human_verified, human_corrected]
+feature_schema: parcel_features_v1

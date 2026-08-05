@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>URRS 通州人工审核台</title>
+  <link rel="stylesheet" href="/review_v2.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">URRS · LOCAL REVIEW</p>
+      <h1>北京通州人工审核台</h1>
+      <p>本地运行 · 不执行模型 · 不调整阈值 · 所有结果均为候选证据</p>
+    </div>
+    <div class="status"><span></span>candidate_not_ground_truth</div>
+  </header>
+
+  <nav class="tabs" aria-label="审核模块">
+    <button class="tab active" data-tab="geometry">几何与变化审核</button>
+    <button class="tab" data-tab="construction">施工状态与生命周期 <b>实验</b></button>
+    <button class="tab" data-tab="seedTemporal">Seed Temporal Labels <b>HUMAN</b></button>
+  </nav>
+
+  <main>
+    <section id="geometryPanel" class="panel active">
+      <aside class="rail">
+        <h2>审核队列</h2>
+        <label>分组<select id="group"><option value="all">全部</option><option value="geometry">四期建筑几何</option><option value="transition">相邻期变化</option><option value="surface_state">地表状态</option></select></label>
+        <label class="check"><input id="mandatoryOnly" type="checkbox" checked> 仅显示必审样本</label>
+        <label class="check"><input id="unreviewedOnly" type="checkbox"> 仅显示未审核</label>
+        <div class="metric" id="stats"></div>
+      </aside>
+      <article class="workspace">
+        <div class="titleline"><div><h2 id="sampleId">正在加载…</h2><p id="sampleMeta"></p></div><button id="copyPath">复制来源</button></div>
+        <div class="evidence-grid">
+          <figure><img id="preview" alt="审核预览"><figcaption>固定窗口预览；不是新的模型输出。</figcaption></figure>
+          <div class="sources"><h3>证据来源</h3><div id="sources"></div></div>
+        </div>
+        <div class="actions"><button data-verdict="PASS">1 通过</button><button data-verdict="MINOR_ISSUE">2 轻微问题</button><button data-verdict="MAJOR_ISSUE">3 严重问题</button><button data-verdict="BLOCKER">4 阻断</button><button id="prev">← 上一条</button><button id="next">下一条 →</button></div>
+      </article>
+      <aside class="formbar">
+        <h2>审核结论</h2>
+        <label>结论<select id="verdict"><option value="">请选择</option><option>PASS</option><option>MINOR_ISSUE</option><option>MAJOR_ISSUE</option><option>BLOCKER</option></select></label>
+        <div id="severity" class="compact-grid"></div>
+        <h3>问题标签</h3><div id="tags" class="tag-grid"></div>
+        <label>备注<textarea id="notes" rows="4"></textarea></label>
+        <label>审核人<input id="reviewer" value="李金泓"></label>
+        <button class="primary" id="save">保存当前</button><button id="undo">撤销最后一次</button><button id="export">导出 Geometry CSV / JSONL</button>
+        <p id="message" class="message"></p>
+      </aside>
+    </section>
+
+    <section id="constructionPanel" class="panel">
+      <aside class="rail">
+        <p class="danger">PSEUDO LABEL — NOT GROUND TRUTH</p>
+        <h2>生命周期轨迹</h2>
+        <label class="check"><input id="constructionPendingOnly" type="checkbox"> 仅显示未审核</label>
+        <div class="metric" id="constructionStats"></div>
+        <p class="help">此页写入独立的 <code>construction_activity/</code>，不会改动 Geometry 审核记录。</p>
+      </aside>
+      <article class="workspace">
+        <div class="titleline"><div><h2 id="trackId">正在加载…</h2><p id="trackMeta">四期固定窗口 · 伪标签待人工确认</p></div><div><button id="constructionPrev">←</button><button id="constructionNext">→</button></div></div>
+        <div id="timeline" class="timeline"></div>
+        <div id="constructionEvidence" class="construction-evidence"></div>
+        <div class="notice"><strong>科学边界：</strong>当前没有经过正式 Validation 的施工状态模型。默认状态为 unknown / uncertain，不会把 CWLD engineering facility 自动解释为施工工地。</div>
+      </article>
+      <aside class="formbar construction-form">
+        <h2>人工生命周期标签</h2>
+        <label>对象类型<select id="sceneType"><option value="construction_site">施工地块轨迹</option><option value="building_track">建筑轨迹</option></select></label>
+        <div id="stateFields"></div>
+        <div id="transitionFields"></div>
+        <div class="flag-grid"><label class="check"><input id="renewalCandidate" type="checkbox"> 城市更新候选</label><label class="check"><input id="expansionCandidate" type="checkbox"> 外围扩张候选</label><label class="check"><input id="repairCandidate" type="checkbox"> 修缮候选</label></div>
+        <label>边界审核<select id="boundaryReview"><option value="accept">接受边界</option><option value="too_small">边界偏小</option><option value="too_large">边界偏大</option><option value="fragmented">边界碎片化</option><option value="wrong">边界错误</option><option value="needs_redraw">需要在 QGIS 重画</option></select></label>
+        <label>置信度 <output id="confidenceValue">0.50</output><input id="constructionConfidence" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+        <label>备注<textarea id="constructionNotes" rows="3"></textarea></label>
+        <label>审核人<input id="constructionReviewer" value="李金泓"></label>
+        <label class="check"><input id="humanModified" type="checkbox"> 我修改了伪标签（保存为 human_corrected）</label>
+        <button class="primary" id="constructionSave">确认并保存</button><button id="constructionExport">导出施工审核 CSV / JSONL</button><button id="constructionCorrections">导出 QGIS REVIEW_CORRECTIONS.gpkg</button>
+        <p id="constructionMessage" class="message"></p>
+      </aside>
+    </section>
+    <section id="seedTemporalPanel" class="panel">
+      <aside class="rail seed-rail">
+        <p class="seed-banner">HUMAN SEED LABEL</p>
+        <p class="danger">NO CONSTRUCTION MODEL PREDICTION</p>
+        <h2>Seed Temporal Labels</h2>
+        <label class="check"><input id="seedPendingOnly" type="checkbox" checked> Only show unreviewed</label>
+        <div class="metric" id="seedStats"></div>
+        <p class="help">This independent seed pass uses real before/after scenes and existing RSBuilding evidence. It is not pixel ground truth and is not used to retune existing URRS models.</p>
+      </aside>
+      <article class="workspace">
+        <div class="titleline"><div><h2 id="seedSampleId">Loading seed inventory...</h2><p id="seedMeta"></p></div><div><button id="seedPrev">Previous</button><button id="seedNext">Next</button></div></div>
+        <div class="seed-notice"><strong>HUMAN SEED LABEL</strong><br>NO CONSTRUCTION MODEL PREDICTION<br>NOT USED TO RETUNE EXISTING URRS MODELS</div>
+        <div class="seed-preview-grid">
+          <figure><img id="seedPairPreview" alt="before and after transition preview"><figcaption>Existing audited transition preview; fixed display evidence.</figcaption></figure>
+          <div class="seed-raw-grid"><figure><img id="seedBeforePreview" alt="real before RGB scene"><figcaption>Real before RGB</figcaption></figure><figure><img id="seedAfterPreview" alt="real after RGB scene"><figcaption>Real after RGB</figcaption></figure></div>
+        </div>
+        <div id="seedEvidence" class="seed-evidence"></div>
+        <div class="sources seed-sources"><h3>Raw dates, CRS, window bounds, and source evidence</h3><div id="seedSources"></div></div>
+      </article>
+      <aside class="formbar seed-form">
+        <h2>Human seed decision</h2>
+        <label>Before surface state<select id="seedBeforeSurfaceState"></select></label>
+        <label>After surface state<select id="seedAfterSurfaceState"></select></label>
+        <label>Transition type<select id="seedTransitionType"></select></label>
+        <div class="flag-grid">
+          <label class="check"><input id="seedExistingBuildingBefore" type="checkbox"> Existing building before</label>
+          <label class="check"><input id="seedExistingBuildingAfter" type="checkbox"> Existing building after</label>
+          <label class="check"><input id="seedConstructionActivityVisible" type="checkbox"> Construction activity visible</label>
+          <label class="check"><input id="seedDemolitionVisible" type="checkbox"> Demolition visible</label>
+          <label class="check"><input id="seedClearingVisible" type="checkbox"> Clearing visible</label>
+          <label class="check"><input id="seedNewStructureVisible" type="checkbox"> New structure visible</label>
+          <label class="check"><input id="seedRepairVisible" type="checkbox"> Repair or refurbishment visible</label>
+        </div>
+        <label>Confidence <output id="seedConfidenceValue">0.50</output><input id="seedConfidence" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+        <label>Notes<textarea id="seedNotes" rows="3"></textarea></label>
+        <label>Reviewer<input id="seedReviewer" value=""></label>
+        <label>Decision<select id="seedDecision"><option value="">Choose</option><option>ACCEPT</option><option>CORRECT</option><option>UNCERTAIN</option><option>REJECT</option></select></label>
+        <label class="check"><input id="seedHumanConfirmed" type="checkbox"> Explicitly confirm this seed (label source becomes human_verified_seed; still not pixel GT)</label>
+        <button class="primary" id="seedSave">Save human seed label</button><button id="seedExport">Export seed labels</button>
+        <p id="seedMessage" class="message"></p>
+      </aside>
+    </section>
+  </main>
+  <script src="/review_v2.js"></script><script src="/review_corrections.js"></script><script src="/seed_temporal.js"></script>
+</body>
+</html>

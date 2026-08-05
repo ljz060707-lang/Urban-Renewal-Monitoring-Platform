@@ -1,0 +1,10 @@
+--- D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\web\urrs_review\index_v2.html
++++ D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\web\urrs_review\index_v2.html
+@@ -61,6 +61,7 @@
+       <article class="workspace">
+         <div class="titleline"><div><h2 id="trackId">正在加载…</h2><p id="trackMeta">四期固定窗口 · 伪标签待人工确认</p></div><div><button id="constructionPrev">←</button><button id="constructionNext">→</button></div></div>
+         <div id="timeline" class="timeline"></div>
++        <div id="constructionEvidence" class="construction-evidence"></div>
+         <div class="notice"><strong>科学边界：</strong>当前没有经过正式 Validation 的施工状态模型。默认状态为 unknown / uncertain，不会把 CWLD engineering facility 自动解释为施工工地。</div>
+       </article>
+       <aside class="formbar construction-form">

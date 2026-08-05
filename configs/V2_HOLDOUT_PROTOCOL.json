@@ -1,0 +1,13 @@
+{
+  "dataset": "SECOND",
+  "split": "test",
+  "sample_count": null,
+  "sample_ids_hash": null,
+  "status": "pending_dataset",
+  "created_before_training": true,
+  "used_for_training": false,
+  "used_for_validation": false,
+  "used_for_threshold_selection": false,
+  "read_count": 0,
+  "note": "SECOND official test is reserved for V2 holdout. Do not enumerate or open it during development."
+}

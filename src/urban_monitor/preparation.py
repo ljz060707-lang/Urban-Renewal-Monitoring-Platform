@@ -15,7 +15,7 @@ from rasterio.warp import calculate_default_transform, reproject, transform_boun
 from shapely.geometry import box
 
 from .crs import select_local_utm_crs, validate_source_crs
-from .ground_truth import GroundTruthResult, normalize_label_file, write_ground_truth_report
+from .ground_truth import GroundTruthResult, normalize_label_file, read_building_labels, write_ground_truth_report
 from .project_discovery import DiscoveredProject
 from .coco import build_spatial_coco
 from .splitting import build_spatial_blocks, write_split_report
@@ -104,7 +104,7 @@ def prepare_project(project: DiscoveredProject, run_dir: str | Path) -> dict[str
     analysis_crs = _analysis_crs(project)
 
     for date, path in project.labels.items():
-        label_crs = gpd.read_file(path, rows=1).crs
+        label_crs = read_building_labels(path, building_layer=project.config["data"].get("building_layer", "buildings"), rows=1).crs
         if label_crs is None:
             raise ValueError(f"Ground Truth CRS is missing: {path}")
 
@@ -137,6 +137,7 @@ def prepare_project(project: DiscoveredProject, run_dir: str | Path) -> dict[str
             image_bounds=image_bounds,
             min_building_area_m2=float(project.config["data"]["min_building_area_m2"]),
             classes=project.config["data"].get("classes", ["building"]),
+            building_layer=project.config["data"].get("building_layer", "buildings"),
         )
         label_output = prepared / "labels" / f"{date}.gpkg"
         label_output.parent.mkdir(parents=True, exist_ok=True)

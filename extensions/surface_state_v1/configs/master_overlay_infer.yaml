@@ -1,0 +1,12 @@
+integration_status: overlay_candidate
+candidate_scope: fusu_500_sample_domain
+scientific_status: candidate_not_ground_truth
+inference_ready: false
+surface_checkpoint: null
+temporal_checkpoint: null
+mti_selection: null
+full20_checkpoint: outputs/pretraining/change_v2/20260727_001029/checkpoints/best_v2_multisource_change.pth
+rsbuilding_checkpoint: outputs/v2_readiness/rsbuilding/whu/work_dirs/swin_t_whu_pilot5000_20260728_110750/iter_2000.pth
+input_t1: null
+input_t2: null
+output: null

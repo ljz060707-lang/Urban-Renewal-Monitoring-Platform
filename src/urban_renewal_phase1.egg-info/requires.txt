@@ -11,6 +11,13 @@ opencv-python-headless>=4.8
 scikit-image>=0.21
 pycocotools>=2.0.7
 
+[ai_review]
+zai-sdk
+jsonschema>=4
+
+[review]
+gradio>=5.0
+
 [train]
 torch>=2.1
 torchvision>=0.16

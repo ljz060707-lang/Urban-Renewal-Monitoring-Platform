@@ -1,0 +1,19 @@
+kind: cwld
+experiment_name: cwld_mini_epoch_test
+cwld_manifest: outputs/data_audit/cwld/CWLD_MANIFEST.csv
+seed: 20260729
+device: cuda
+image_size: 64
+batch_size: 2
+gradient_accumulation_steps: 1
+pin_memory: true
+amp: true
+epochs: 1
+early_stopping_patience: 1
+gradient_clip_norm: 1.0
+resume: auto
+candidate_status: cwld_validation_candidate
+class_weight_min: 0.25
+class_weight_max: 4.0
+codec: {max_anchor_distance: 128.0, min_distance_margin: 16.0, ignore_index: 255}
+optimizer: {decoder_lr: 0.0003, weight_decay: 0.01}

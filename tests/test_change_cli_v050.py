@@ -8,7 +8,7 @@ from urban_monitor.change.cli import _mark_failed_run, build_parser
 def test_change_cli_commands_exist_and_v040_parser_still_routes():
     parser = build_parser()
     commands = {action.dest: set(action.choices) for action in parser._actions if action.dest == "command"}["command"]
-    assert {"change-doctor","change-prepare","change-train","change-all","change-demo","change-review","change-retrain","change-labels","change-finetune"} <= commands
+    assert {"change-doctor","change-prepare","change-train","change-all","change-demo","change-review","change-retrain","change-labels","change-finetune", "change-final-test"} <= commands
     from urban_monitor.cli import build_parser as old_parser
     assert old_parser().parse_args(["doctor"]).command == "doctor"
     assert parser.parse_args(["change-all", "--quick"]).quick is True

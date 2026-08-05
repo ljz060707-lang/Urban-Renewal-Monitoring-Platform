@@ -1,0 +1,27 @@
+--- D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\review\server.py
++++ D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\review\server.py
+@@ -16,6 +16,15 @@
+         migration_dir = self.construction_inventory.get("source_migration_dir")
+         if migration_dir:
+             self.construction_asset_roots.append((Path(migration_dir) / "transition_previews").resolve())
++        self.construction_asset_files = set()
++        for record in self.construction_inventory.get("records", []):
++            for evidence in record.get("evidence_by_transition", {}).values():
++                for item in evidence.values():
++                    for path in item.get("paths", []) if isinstance(item, dict) else []:
++                        if isinstance(path, str):
++                            candidate = Path(path).resolve()
++                            if candidate.is_file():
++                                self.construction_asset_files.add(str(candidate))
+     def handler(self):
+         parent=self
+         class Handler(BaseHTTPRequestHandler):
+@@ -30,6 +39,8 @@
+                 if not candidate.is_absolute():
+                     candidate = parent.review_dir / candidate
+                 candidate = candidate.resolve()
++                if str(candidate) in parent.construction_asset_files:
++                    return self.serve_file(candidate)
+                 for root in parent.construction_asset_roots:
+                     try:
+                         candidate.relative_to(root.resolve())

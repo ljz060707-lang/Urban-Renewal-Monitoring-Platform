@@ -1,0 +1,10 @@
+experiment_name: building_foundation_v2_smoke
+dataset: WHU_Building
+dataset_scope: whu_train_validation_only
+test_used: false
+image_size: 128
+batch_size: 2
+epochs: 1
+height_enabled: false
+source_checkpoint_sha256: f71c0c0807e33ef422511e9b24766dbe89e7215d0837ea21d0ffa2d8d185cfa7
+candidate_promotion: blocked_until_strict_source_migration_and_full_validation

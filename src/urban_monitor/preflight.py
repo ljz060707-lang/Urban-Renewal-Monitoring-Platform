@@ -7,10 +7,64 @@ import shutil
 import geopandas as gpd
 import numpy as np
 import rasterio
+from shapely.geometry import box
+
+from .ground_truth import read_building_labels
+from .project_discovery import discover_project
 
 
 class PreflightError(RuntimeError):
     pass
+
+
+def run_personal_preflight(aoi_id: str, data_root: str | Path, output_dir: str | Path) -> dict[str, object]:
+    """Validate external or repository-local AOI inputs without modifying them."""
+    output = Path(output_dir); output.mkdir(parents=True, exist_ok=True)
+    blockers, warnings, rows = [], [], []
+    try:
+        project = discover_project(aoi_id, data_root)
+    except Exception as exc:
+        report = {"READY_TO_PREPARE": False, "blockers": [str(exc)], "warnings": [], "report_path": str(output / "PERSONAL_PREPARE_CHECKLIST.md")}
+        (output / "PERSONAL_PREPARE_CHECKLIST.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        (output / "PERSONAL_PREPARE_CHECKLIST.md").write_text(f"# Personal preflight\n\nREADY_TO_PREPARE = **False**\n\n- {exc}\n", encoding="utf-8")
+        return report
+    footprints, resolutions = [], []
+    layer = project.config["data"].get("building_layer", "buildings")
+    for date, image_path in sorted(project.images.items()):
+        try:
+            with rasterio.open(image_path) as image:
+                if image.crs is None: blockers.append(f"{date}: image CRS is missing")
+                footprint = box(*image.bounds); footprints.append(footprint)
+                resolution = (abs(image.transform.a) + abs(image.transform.e)) / 2; resolutions.append(resolution)
+                labels = read_building_labels(project.labels[date], building_layer=layer)
+                if labels.crs is None: blockers.append(f"{date}: label CRS is missing")
+                types = set(labels.geom_type.dropna())
+                if not types <= {"Polygon", "MultiPolygon"}: blockers.append(f"{date}: labels are not Polygon/MultiPolygon: {sorted(types)}")
+                invalid = int((~labels.geometry.is_valid).sum()) if not labels.empty else 0
+                empty = int(labels.geometry.is_empty.sum()) if not labels.empty else 0
+                if labels.empty: blockers.append(f"{date}: buildings layer is empty")
+                if labels.crs is not None and image.crs is not None:
+                    projected = labels.to_crs(image.crs)
+                    if not projected.empty and not projected.geometry.union_all().intersects(footprint): blockers.append(f"{date}: labels do not intersect image extent")
+                rows.append({"date": date, "image": str(image_path), "label": str(project.labels[date]), "building_layer": layer,
+                             "buildings": len(labels), "invalid_geometries": invalid, "empty_geometries": empty, "gsd": resolution,
+                             "image_crs": str(image.crs), "label_crs": str(labels.crs)})
+        except Exception as exc:
+            blockers.append(f"{date}: cannot validate image/label pair: {exc}")
+    if len(footprints) > 1:
+        common = footprints[0]
+        for footprint in footprints[1:]: common = common.intersection(footprint)
+        if common.is_empty: blockers.append("Images have no common coverage area")
+    if resolutions and max(resolutions) / max(min(resolutions), 1e-12) > 2: warnings.append("Image GSD differs by more than 2x")
+    report = {"READY_TO_PREPARE": not blockers, "aoi_id": aoi_id, "data_root": str(Path(data_root).resolve()),
+              "building_layer": layer, "pairs": rows, "blockers": blockers, "warnings": warnings,
+              "report_path": str(output / "PERSONAL_PREPARE_CHECKLIST.md")}
+    (output / "PERSONAL_PREPARE_CHECKLIST.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    lines = ["# Personal AOI preflight", "", f"READY_TO_PREPARE = **{report['READY_TO_PREPARE']}**", "", "## Pairs"]
+    lines.extend(f"- {row['date']}: buildings={row['buildings']}, layer={row['building_layer']}, gsd={row['gsd']}" for row in rows)
+    lines += ["", "## Blockers", *([f"- {value}" for value in blockers] or ["- none"]), "", "## Warnings", *([f"- {value}" for value in warnings] or ["- none"]), ""]
+    (output / "PERSONAL_PREPARE_CHECKLIST.md").write_text("\n".join(lines), encoding="utf-8")
+    return report
 
 
 def run_preflight(project, run_dir: str | Path) -> dict[str, object]:

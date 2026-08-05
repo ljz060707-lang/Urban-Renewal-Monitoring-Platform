@@ -1,0 +1,82 @@
+# URRS Construction Activity: isolated Nanjing Jiangbei domain-adaptation candidate.
+# This is a candidate experiment contract, never a production/national model.
+model:
+  name: nanjing_domain_adaptation_candidate
+  architecture: ConstructionElementNet
+  width: 24
+  scientific_status: domain_adaptation_candidate_or_rejected
+  production_ready: false
+  national_generalization_verified: false
+
+data:
+  source_root: D:\Data Set\Satellite\nanjing_jiangbei
+  ucs_root: D:\Data Set\URS\600 manually delineated UCS labels part2
+  rgb_mapping: [3, 2, 1]
+  normalization: per_image_percentile_2_98
+  tile_size: 512
+  overlap: 64
+  spatial_split_seed: 20260803
+  spatial_split: {train: 0.60, validation: 0.20, untouched_holdout: 0.20}
+  duplicate_policy: retain_2022-12-02_exclude_2024-10-20_as_duplicate_observation
+  valid_dates: [2015-01-04, 2016-08-18, 2017-12-11, 2018-02-08, 2019-03-16, 2022-12-02]
+  forbidden_dates: [2024-10-20]
+
+pseudo_label_policy:
+  human_verified: 1.00
+  human_corrected: 1.00
+  UCS_supervised: 1.00
+  stable_building_hard_negative: 0.60
+  multi_source_construction_positive: 0.50
+  single_module_high_confidence: 0.25
+  uncertain_or_conflict: 0.00
+  positive_rule: at_least_two_of_A_construction_B_Full20_C_RSBuilding
+  stable_negative_rule: two_or_more_dates_stable_geometry_low_Full20_change_and_construction_conflict
+
+frozen_contract:
+  Full20: true
+  RSBuilding: true
+  baseline_fusion: true
+  baseline_tracking: true
+  surface_state: true
+  construction_TFR: true
+  construction_MTI: true
+  locked_test: true
+  three_d_globfp: true
+  globfp_enabled: false
+  baseline_reinference: false
+  baseline_directory_writes: false
+
+experiments:
+  A:
+    name: frozen_baseline
+    training: false
+    checkpoint: current_frozen_construction_candidate
+  B:
+    name: low_risk_nanjing_domain_adaptation
+    encoder_frozen: true
+    trainable_modules: [decoder, ucs_native_head, boundary_head, uncertainty_head, unified_evidence_projector]
+    head_lr: 0.0001
+    encoder_lr: 0.0
+    max_epochs: 20
+    patience: 4
+    weight_decay: 0.01
+  C:
+    name: last_encoder_stage_only_if_gates_pass
+    encoder_frozen_except_last_stage: true
+    head_lr: 0.0001
+    last_encoder_stage_lr_ratio: 0.10
+    max_epochs: 20
+    patience: 4
+    run_only_if_B_gates_pass: true
+
+training:
+  seed: 20260803
+  image_size: 256
+  batch_size: 2
+  amp: true
+  gradient_clip_norm: 1.0
+  checkpoint_metric: UCS_validation_and_Nanjing_domain_adaptation_validation_proxy_only
+  holdout_used_for_selection: false
+  locked_test_pixel_reads: 0
+  resume_allowed: false
+  create_new_run: true

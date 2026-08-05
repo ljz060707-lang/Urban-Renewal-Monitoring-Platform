@@ -1,0 +1,32 @@
+kind: cwld
+experiment_name: cwld_full_train
+cwld_manifest: outputs/data_audit/cwld/CWLD_MANIFEST.csv
+seed: 20260729
+device: cuda
+image_size: 512
+batch_size: 2
+gradient_accumulation_steps: 4
+num_workers: 0
+pin_memory: true
+amp: true
+epochs: 50
+early_stopping_patience: 8
+validation_every_epochs: 1
+optimizer:
+  name: adamw
+  encoder_lr: 0.00006
+  decoder_lr: 0.0003
+  weight_decay: 0.01
+scheduler:
+  name: cosine
+  warmup_steps: 300
+gradient_clip_norm: 1.0
+ignore_index: 255
+class_weight_min: 0.25
+class_weight_max: 4.0
+resume: auto
+candidate_status: cwld_validation_candidate
+codec:
+  max_anchor_distance: 128.0
+  min_distance_margin: 16.0
+  ignore_index: 255

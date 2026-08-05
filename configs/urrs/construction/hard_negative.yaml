@@ -1,0 +1,5 @@
+enabled: true
+sources_must_be_audited: true
+allow_tongzhou_for_model_selection: false
+ohem: true
+focal_gamma: 2.0

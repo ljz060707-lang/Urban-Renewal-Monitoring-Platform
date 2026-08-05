@@ -9,9 +9,11 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
+import yaml
 from rasterio.features import rasterize
 
 from urban_monitor.project_discovery import parse_date_from_filename
+from urban_monitor.ground_truth import read_building_labels
 
 
 CAUTION_FLAGS = ["high_rise_roof_displacement", "shadow", "tree_occlusion", "registration_issue", "merge", "split", "construction_transition", "outline_difference", "segmentation_error"]
@@ -54,8 +56,12 @@ def _write_mask(path: Path, geometries, reference: Path):
 
 
 def generate_local_change_candidates(aoi_id: str, *, repo_root: str | Path, iou_threshold: float = 0.2,
-                                     min_area_m2: float = 10.0, run: str | Path | None = None) -> Path:
-    repo = Path(repo_root).resolve(); project = repo / "data" / aoi_id
+                                     min_area_m2: float = 10.0, run: str | Path | None = None,
+                                     data_root: str | Path = "data") -> Path:
+    repo = Path(repo_root).resolve(); root = Path(data_root); project = (root / aoi_id) if root.is_absolute() else repo / root / aoi_id
+    project_yaml = project / "project.yaml"
+    project_config = yaml.safe_load(project_yaml.read_text(encoding="utf-8")) if project_yaml.is_file() else {}
+    building_layer = project_config.get("data", {}).get("building_layer", "buildings")
     labels = {parse_date_from_filename(path.name): path for path in (project / "labels").iterdir() if path.suffix.casefold() in {".gpkg", ".geojson", ".shp"}}
     images = {parse_date_from_filename(path.name): path for path in (project / "images").iterdir() if path.suffix.casefold() in {".tif", ".tiff"}}
     dates = sorted(set(labels) & set(images))
@@ -66,7 +72,8 @@ def generate_local_change_candidates(aoi_id: str, *, repo_root: str | Path, iou_
     for first_date, second_date in zip(dates, dates[1:]):
         with rasterio.open(images[first_date]) as raster: analysis_crs = raster.crs
         if analysis_crs is None: raise ValueError(f"Image CRS is missing: {images[first_date]}")
-        first = gpd.read_file(labels[first_date]); second = gpd.read_file(labels[second_date])
+        first = read_building_labels(labels[first_date], building_layer=building_layer)
+        second = read_building_labels(labels[second_date], building_layer=building_layer)
         if first.crs is None or second.crs is None: raise ValueError("Local building labels require CRS")
         first, second = first.to_crs(analysis_crs), second.to_crs(analysis_crs)
         new = _unmatched(second, first, iou_threshold, min_area_m2)

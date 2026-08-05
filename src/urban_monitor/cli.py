@@ -188,14 +188,17 @@ def doctor(data_root: str | Path = "data") -> int:
     if missing:
         issues.append("Missing packages: " + ", ".join(missing))
     data = (REPO_ROOT / data_root).resolve() if not Path(data_root).is_absolute() else Path(data_root)
-    data.mkdir(parents=True, exist_ok=True)
+    if not data.is_dir():
+        issues.append(f"Data directory does not exist: {data}")
     try:
-        probe = data / "中文路径_写权限检查.tmp"
+        probe_root = REPO_ROOT / "outputs"
+        probe_root.mkdir(parents=True, exist_ok=True)
+        probe = probe_root / "中文路径_写权限检查.tmp"
         probe.write_text("ok", encoding="utf-8")
         probe.unlink()
     except OSError as exc:
         issues.append(f"Data directory is not writable or Chinese path failed: {exc}")
-    free_gb = shutil.disk_usage(data).free / (1024 ** 3)
+    free_gb = shutil.disk_usage(data if data.exists() else REPO_ROOT).free / (1024 ** 3)
     if free_gb < 2:
         issues.append(f"Available disk is only {free_gb:.2f} GiB")
     cuda = False
@@ -220,13 +223,14 @@ def doctor(data_root: str | Path = "data") -> int:
     return 0
 
 
-def _prepare(aoi_id: str, manifest_arg: str | None, force: bool, *, new_run: bool) -> tuple[Any, Path, dict, Path | None]:
+def _prepare(aoi_id: str, manifest_arg: str | None, force: bool, *, new_run: bool, data_root: str | Path = "data") -> tuple[Any, Path, dict, Path | None]:
     import yaml
 
     from .preparation import prepare_project
     from .project_discovery import discover_project, resolve_manifest
 
-    project = discover_project(aoi_id, REPO_ROOT / "data")
+    root = Path(data_root)
+    project = discover_project(aoi_id, root if root.is_absolute() else REPO_ROOT / root)
     manifest, manifest_source = resolve_manifest(project, manifest_arg)
     data_hash = compute_data_hash(project)
     latest = _latest(aoi_id)
@@ -469,11 +473,15 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     doctor_parser = subparsers.add_parser("doctor")
     doctor_parser.add_argument("--data-root", default="data")
+    personal = subparsers.add_parser("personal-preflight")
+    personal.add_argument("--aoi", required=True)
+    personal.add_argument("--data-root", default="data")
     for name in ("prepare", "train", "evaluate", "predict", "track", "all"):
         sub = subparsers.add_parser(name)
         sub.add_argument("--aoi", required=True)
         sub.add_argument("--manifest")
         sub.add_argument("--force", action="store_true")
+        sub.add_argument("--data-root", default="data")
         if name == "train":
             sub.add_argument("--resume", action="store_true")
         if name == "predict":
@@ -481,27 +489,133 @@ def build_parser() -> argparse.ArgumentParser:
     demo = subparsers.add_parser("demo")
     demo.add_argument("--force", action="store_true")
     demo.add_argument("--aoi", default="demo_aoi")
+    subparsers.add_parser("model-list")
+    subparsers.add_parser("dataset-list")
+    subparsers.add_parser("experiment-list")
+    artifact_list = subparsers.add_parser("artifact-list")
+    artifact_list.add_argument("--type")
+    dataset_audit = subparsers.add_parser("dataset-audit")
+    dataset_audit.add_argument("--config", required=True)
+    dataset_audit.add_argument("--output-dir")
+    dataset_prepare = subparsers.add_parser("dataset-prepare")
+    dataset_prepare.add_argument("--config", required=True)
+    dataset_prepare.add_argument("--output-dir")
+    surface = subparsers.add_parser("train-surface-state")
+    surface.add_argument("--config", required=True)
+    surface.add_argument("--smoke", action="store_true")
+    gallery = subparsers.add_parser("build-gallery")
+    gallery.add_argument("--open", action="store_true", dest="open_gallery")
+    subparsers.add_parser("project-status")
+    infer = subparsers.add_parser("infer")
+    infer.add_argument("--scene", required=True)
+    infer.add_argument("--run-id", required=True)
+    infer.add_argument("--capability", action="append", default=[])
+    temporal = subparsers.add_parser("temporal-fuse")
+    temporal.add_argument("--input", required=True, help="JSON observations grouped by track_id")
+    temporal.add_argument("--output", required=True)
+    temporal.add_argument("--rules", default="configs/temporal/default_rules.yaml")
+    vectorize = subparsers.add_parser("vectorize")
+    vectorize.add_argument("--scene", required=True)
+    vectorize.add_argument("--run-id", required=True)
     return parser
+
+
+def _registry_command(args: argparse.Namespace) -> int | None:
+    if args.command not in {
+        "model-list", "dataset-list", "experiment-list", "artifact-list", "dataset-audit", "dataset-prepare",
+        "train-surface-state", "build-gallery", "project-status", "infer", "temporal-fuse", "vectorize",
+    }:
+        return None
+    if args.command in {"model-list", "dataset-list", "experiment-list", "artifact-list", "build-gallery", "project-status"}:
+        from .catalog import build_catalog, discover_artifacts, discover_experiments, load_datasets, load_models, print_rows
+        if args.command == "model-list":
+            print_rows(load_models(), ["model_id", "status", "test_status", "run_id", "inference_ready"])
+        elif args.command == "dataset-list":
+            print_rows(load_datasets(), ["dataset_id", "role", "train_count", "val_count", "test_policy", "status"])
+        elif args.command == "experiment-list":
+            print_rows(discover_experiments(), ["run_id", "model_id", "epochs", "status", "test_used", "test_read_count"])
+        elif args.command == "artifact-list":
+            rows = discover_artifacts()
+            if args.type:
+                rows = [row for row in rows if row["artifact_type"] == args.type]
+            print_rows(rows, ["model", "run", "dataset", "artifact_type", "access_status", "path"])
+        else:
+            summary = build_catalog()
+            path = summary["gallery"] if args.command == "build-gallery" else summary["dashboard"]
+            print(path)
+            if getattr(args, "open_gallery", False):
+                os.startfile(path)
+        return 0
+    if args.command in {"dataset-audit", "dataset-prepare"}:
+        from .datasets.onboarding import audit_dataset, prepare_dataset
+        if args.command == "dataset-audit":
+            report = audit_dataset(args.config, args.output_dir)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0 if report["status"] == "ready" else 2
+        print(prepare_dataset(args.config, args.output_dir))
+        return 0
+    if args.command == "train-surface-state":
+        from .surface_state.training import train_surface_state
+        train_surface_state(args.config, smoke=args.smoke)
+        return 0
+    if args.command in {"infer", "vectorize"}:
+        from .unified_inference import initialize_inference_run
+        capabilities = set(args.capability) if args.command == "infer" else set()
+        root = initialize_inference_run(args.scene, args.run_id, capabilities=capabilities)
+        print(root / "manifest.json")
+        return 0
+    if args.command == "temporal-fuse":
+        from datetime import date
+        from .temporal import QualityState, TemporalObservation, TemporalStateEngine
+        payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
+        engine = TemporalStateEngine.from_yaml(args.rules)
+        results = []
+        for track_id, rows in payload.items():
+            observations = [
+                TemporalObservation(
+                    object_id=str(row.get("object_id", track_id)), date=date.fromisoformat(row["date"]),
+                    vacant_probability=row.get("vacant_probability"),
+                    construction_probability=row.get("construction_probability"),
+                    building_probability=row.get("building_probability"),
+                    quality=QualityState(row.get("quality", "unknown_quality")),
+                    area_m2=row.get("area_m2"), uncertainty=row.get("uncertainty"), source=row.get("source", ""),
+                ) for row in rows
+            ]
+            results.append(engine.as_dict(engine.infer(track_id, observations)))
+        destination = Path(args.output)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps(results, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        print(destination)
+        return 0
+    raise AssertionError(args.command)
 
 
 def main(argv: list[str] | None = None) -> int:
     routed = list(sys.argv[1:] if argv is None else argv)
-    if routed and routed[0].startswith("change-"):
+    if routed and (routed[0].startswith("change-") or routed[0].startswith("urban-renewal-")):
         from .change.cli import main as change_main
         return change_main(routed)
     args = build_parser().parse_args(routed)
+    registry_result = _registry_command(args)
+    if registry_result is not None:
+        return registry_result
     if args.command == "doctor":
         return doctor(args.data_root)
     if args.command == "demo":
         aoi = _demo_data(args.force, args.aoi)
-        args = argparse.Namespace(command="all", aoi=aoi, manifest=None, force=args.force)
-    if args.command == "all" and doctor() != 0:
+        args = argparse.Namespace(command="all", aoi=aoi, manifest=None, force=args.force, data_root="data")
+    if args.command == "personal-preflight":
+        from .preflight import run_personal_preflight
+        report = run_personal_preflight(args.aoi, args.data_root, REPO_ROOT / "outputs" / args.aoi / "preflight")
+        print(report["report_path"])
+        return 0 if report["READY_TO_PREPARE"] else 1
+    if args.command == "all" and doctor(args.data_root) != 0:
         return 1
     run = None
     stage = "prepare"
     try:
         new_run = args.command != "prepare"
-        project, run, config, source_run = _prepare(args.aoi, getattr(args, "manifest", None), args.force, new_run=new_run)
+        project, run, config, source_run = _prepare(args.aoi, getattr(args, "manifest", None), args.force, new_run=new_run, data_root=args.data_root)
         if args.command in {"evaluate", "predict", "track"} and source_run:
             _clone_tree(source_run / "training", run / "training")
             _clone_tree(source_run / "evaluation", run / "evaluation")

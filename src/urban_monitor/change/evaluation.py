@@ -12,6 +12,7 @@ from .augmentations import ChangePairTransform
 from .datasets import PublicChangeDataset
 from .metrics import ChangeMetricAccumulator
 from .models import build_change_model
+from .splits import resolve_train_validation_test_splits
 
 
 def _array(tensor):
@@ -61,7 +62,7 @@ def _save_prediction(path: Path, probability):
 
 def evaluate_change_checkpoint(checkpoint: str | Path, index_path: str | Path, run: str | Path, *,
                                device_name: str = "cpu", stage: str | None = None, threshold: float = 0.5,
-                               preview_limit: int = 100) -> dict:
+                               preview_limit: int = 100, split_scope: str = "validation") -> dict:
     import torch
     run, checkpoint = Path(run), Path(checkpoint)
     payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
@@ -71,15 +72,20 @@ def evaluate_change_checkpoint(checkpoint: str | Path, index_path: str | Path, r
         raise RuntimeError("CUDA evaluation requested but torch.cuda.is_available() is false")
     device = torch.device(device_name)
     model = build_change_model(config); model.load_state_dict(payload["model"]); model.to(device).eval()
-    frame = pd.read_csv(index_path, dtype=str).fillna("")
-    frame = frame[frame["split"].str.casefold().isin(["val", "valid", "validation", "test"])]
+    all_frame = pd.read_csv(index_path, dtype=str).fillna("")
+    _, validation_frame, test_frame, split_summary = resolve_train_validation_test_splits(all_frame, config)
+    frame = test_frame if split_scope == "test" else validation_frame
     if frame.empty:
-        raise ValueError("Evaluation requires validation/test samples with GT")
+        raise ValueError(f"Evaluation requires {split_scope} samples with GT")
     size = int(config.get("training", {}).get("patch_size", 256))
     dataset = PublicChangeDataset(frame, transform=ChangePairTransform(size, training=False))
     names = sorted(set(frame["dataset_name"]))
     semantic_classes = int(config.get("model", config.get("change_model", {})).get("semantic_classes", 7))
-    building = int(config.get("datasets", {}).get("second", {}).get("building_class_id", 1))
+    has_semantic = frame["has_semantic"].astype(str).str.casefold().isin({"true", "1", "yes"}).any()
+    building_value = config.get("datasets", {}).get("second", {}).get("building_class_id")
+    if has_semantic and building_value is None:
+        raise ValueError("datasets.second.building_class_id is required when semantic supervision is enabled")
+    building = int(building_value) if building_value is not None else None
     accumulators = {name: ChangeMetricAccumulator(semantic_classes, building) for name in [*names, "combined"]}
     error_roots = ["false_positive", "false_negative", "low_confidence", "new_dem_conflict", "possible_misalignment", "label_inconsistency", "model_disagreement"]
     for name in error_roots: (run / "errors" / name).mkdir(parents=True, exist_ok=True)
@@ -132,7 +138,16 @@ def evaluate_change_checkpoint(checkpoint: str | Path, index_path: str | Path, r
             review_rows.append({
                 "sample_id": sample["sample_id"], "dataset_name": name, "stage": stage,
                 "f1": sample_f1, "iou": sample_iou, "uncertainty": float(uncertainty.mean()),
+                "precision": tp / max(1, tp + fp) if gt is not None else None,
+                "recall": tp / max(1, tp + fn) if gt is not None else None,
+                "false_positive_pixels": fp if gt is not None else None,
+                "false_negative_pixels": fn if gt is not None else None,
+                "gt_positive_ratio": float(gt.mean()) if gt is not None else None,
+                "prediction_positive_ratio": float(pred.mean()),
                 "t1_path": str(frame.iloc[index]["t1_path"]), "t2_path": str(frame.iloc[index]["t2_path"]),
+                "gt_binary_path": str(frame.iloc[index].get("gt_cd_path", "")),
+                "gt_new_path": str(frame.iloc[index].get("gt_new_path", "")),
+                "gt_demolition_path": str(frame.iloc[index].get("gt_dem_path", "")),
                 "binary_probability_path": str((run / "predictions" / name / stage / f"{safe}_binary.png").resolve()),
                 "new_probability_path": str((run / "predictions" / name / stage / f"{safe}_new.png").resolve()),
                 "demolition_probability_path": str((run / "predictions" / name / stage / f"{safe}_demolition.png").resolve()),
@@ -140,7 +155,11 @@ def evaluate_change_checkpoint(checkpoint: str | Path, index_path: str | Path, r
             })
     results = {name: accumulator.result() for name, accumulator in accumulators.items()}
     (run / "metrics").mkdir(parents=True, exist_ok=True)
+    metrics_root = run / "metrics" if split_scope == "validation" else run / "metrics" / split_scope
+    metrics_root.mkdir(parents=True, exist_ok=True)
     for name, result in results.items():
-        (run / "metrics" / f"{name}.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    pd.DataFrame(review_rows).to_csv(run / "review" / "review_samples.csv", index=False, encoding="utf-8-sig")
+        (metrics_root / f"{name}.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    (metrics_root / "split_selection.json").write_text(json.dumps({**split_summary, "scope": split_scope}, ensure_ascii=False, indent=2), encoding="utf-8")
+    review_name = "review_samples.csv" if split_scope == "validation" else f"review_samples_{split_scope}.csv"
+    pd.DataFrame(review_rows).to_csv(run / "review" / review_name, index=False, encoding="utf-8-sig")
     return results

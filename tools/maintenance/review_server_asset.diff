@@ -1,0 +1,49 @@
+--- D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\review\server.py
++++ D:\Codex\projects\Documents-Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\src\urban_renewal\review\server.py
+@@ -1,7 +1,7 @@
+ import json, mimetypes, webbrowser
+ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+ from pathlib import Path
+-from urllib.parse import urlparse
++from urllib.parse import unquote, urlparse
+ from .app import prepare
+ from .review_store import ReviewStore
+ from .security import safe_path
+@@ -12,6 +12,10 @@
+ class ReviewServer:
+     def __init__(self, project, review_dir, web_root):
+         self.project=Path(project).resolve(); self.review_dir=Path(review_dir).resolve(); self.web_root=Path(web_root).resolve(); self.data=prepare(self.project,self.review_dir); self.store=ReviewStore(self.review_dir); self.construction_inventory=build_construction_inventory(self.review_dir,self.data['inventory']); self.construction_store=ConstructionReviewStore(self.review_dir, self.construction_inventory)
++        self.construction_asset_roots = [self.review_dir]
++        migration_dir = self.construction_inventory.get("source_migration_dir")
++        if migration_dir:
++            self.construction_asset_roots.append((Path(migration_dir) / "transition_previews").resolve())
+     def handler(self):
+         parent=self
+         class Handler(BaseHTTPRequestHandler):
+@@ -21,6 +25,18 @@
+             def serve_file(self,p):
+                 if not p.is_file(): raise FileNotFoundError(str(p))
+                 data=p.read_bytes(); self.send_response(200); self.send_header('Content-Type',mimetypes.guess_type(str(p))[0] or 'application/octet-stream'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
++            def serve_construction_asset(self, raw_path):
++                candidate = Path(unquote(raw_path))
++                if not candidate.is_absolute():
++                    candidate = parent.review_dir / candidate
++                candidate = candidate.resolve()
++                for root in parent.construction_asset_roots:
++                    try:
++                        candidate.relative_to(root.resolve())
++                    except ValueError:
++                        continue
++                    return self.serve_file(candidate)
++                raise PermissionError("construction asset is outside the approved preview roots")
+             def do_GET(self):
+                 try:
+                     path=urlparse(self.path).path
+@@ -28,6 +44,7 @@
+                     if path=='/api/state': return self.send_json({'summary':parent.store.summary(parent.data['inventory']),'state':parent.store._read()})
+                     if path=='/api/construction/inventory': return self.send_json(parent.construction_inventory)
+                     if path=='/api/construction/state': return self.send_json({'summary':parent.construction_store.summary(parent.construction_inventory),'state':parent.construction_store._read()})
++                    if path.startswith('/construction-preview/'): return self.serve_construction_asset(path[len('/construction-preview/'):])
+                     if path.startswith('/preview/'): return self.serve_file(safe_path(parent.review_dir,path[len('/preview/'):]))
+                     if path=='/': path='/index_v2.html'
+                     return self.serve_file(safe_path(parent.web_root,path.lstrip('/')))

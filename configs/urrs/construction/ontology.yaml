@@ -1,0 +1,13 @@
+module_id: construction_activity_v1
+native_labels:
+  ucs: [ucs_background, ucs_exposed_area, ucs_dustproof_net, ucs_building, ucs_uncertain]
+  cwld: [cwld_background, cwld_vacant_landfillable, cwld_engineering_facility, cwld_waste_dumping]
+evidence:
+  - background_evidence
+  - exposed_ground_evidence
+  - dustproof_net_evidence
+  - building_evidence
+  - engineering_facility_evidence
+  - material_debris_evidence
+  - uncertain_evidence
+scientific_status: candidate_not_ground_truth

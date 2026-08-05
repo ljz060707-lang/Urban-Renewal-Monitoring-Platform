@@ -1,0 +1,9 @@
+manifest: outputs/data_audit/cwld/CWLD_MANIFEST.csv
+image_size: 256
+batch_size: 2
+learning_rate: 0.0003
+smoke_steps: 20
+codec:
+  max_anchor_distance: 96.0
+  min_distance_margin: 16.0
+  ignore_index: 255

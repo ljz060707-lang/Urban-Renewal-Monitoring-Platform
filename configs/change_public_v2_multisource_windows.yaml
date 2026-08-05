@@ -1,0 +1,138 @@
+version: 2
+schema_version: '2.0'
+output_root: outputs/pretraining/change_v2
+datasets:
+  dsifn:
+    enabled: true
+    root: D:/Data Set/DSIFN-Dataset
+    allowed_splits:
+    - train
+    - validation
+    sampling_weight: 1.0
+    allow_test: false
+  s2looking:
+    enabled: true
+    root: D:/Data Set/S2Looking
+    allowed_splits:
+    - train
+    - validation
+    sampling_weight: 2.0
+    allow_test: false
+  second:
+    enabled: true
+    root: D:/Data Set/SECOND
+    allowed_splits:
+    - train
+    sampling_weight: 1.5
+    allow_test: false
+    mapping_verified: true
+    building_class_id: 5
+    class_mapping_file: null
+    semantic_ignore_index: 255
+    development_validation:
+      enabled: true
+      count: 300
+      seed: 20260726
+      manifest: outputs/v2_readiness/SECOND_DEV_VALIDATION_IDS.csv
+      stratified: true
+      source_split: train
+teachers:
+  dsifn:
+    enabled: true
+    checkpoint: outputs/pretraining/change/20260725_232317/checkpoints/best_binary_change.pth
+  s2looking:
+    enabled: true
+    checkpoint: outputs/models/urban_change_v1_s2looking/checkpoints/best_directional_change.pth
+  second:
+    enabled: true
+  rsbuilding:
+    enabled: true
+    external_inference: true
+    repo: D:/Data Set/RSBuilding/repo
+    checkpoint: D:/Data Set/RSBuilding/weights/Swin_T.pth
+    output_root: D:/Data Set/RSBuilding/outputs
+initialization:
+  dsifn_checkpoint: outputs/pretraining/change/20260725_232317/checkpoints/best_binary_change.pth
+  dsifn_sha256: d458e9b6bed969fcf79a38603608834b5bcafd8c055ba6b61ffcba8387819210
+  s2looking_checkpoint: outputs/models/urban_change_v1_s2looking/checkpoints/best_directional_change.pth
+  s2looking_sha256: 4fd4c10cc8ceb0ce66c10c7e1f6bde4902404ff465a01423bdf4585653a6978c
+model:
+  version: v2
+  architecture: multitask_siamese_unet
+  semantic_classes: 7
+  pretrained: false
+  heads:
+    any_change: true
+    new_building: true
+    demolition: true
+    semantic_t1: true
+    semantic_t2: true
+  uncertainty:
+    enabled: true
+    mode: derived_entropy
+training:
+  initialization_checkpoint: outputs/pretraining/change_v2/preflight/v2_merged_initial.pth
+  seed: 42
+  epochs: 20
+  batch_size: 4
+  num_workers: 4
+  patch_size: 256
+  learning_rate: 0.0001
+  amp: true
+  amp_initial_scale: 1024
+  device: cuda:0
+  temporal_alignment_jitter_px: 0
+  dataset_sampling:
+    s2looking: 2.0
+    second: 1.5
+    dsifn: 1.0
+patch_sampling:
+  strategy: directional_composition
+  enabled: true
+  target_coverage_probability: 0.7
+  boundary_probability: 0.2
+  jitter_px: 64
+  composition:
+    demolition_positive: 0.2
+    new_positive: 0.4
+    background: 0.4
+augmentation:
+  paired_geometric: true
+  temporal_photometric: true
+  brightness: 0.15
+  contrast: 0.15
+  gamma:
+    min: 0.85
+    max: 1.15
+  gaussian_blur_probability: 0.1
+  temporal_alignment_jitter_px: 0
+loss:
+  bce_weight: 1.0
+  dice_weight: 1.0
+  boundary:
+    enabled: true
+    weight: 0.2
+    width_px: 2
+  boundary_weight: 0.2
+  boundary_width_px: 2
+  semantic:
+    weight: 1.0
+    ignore_index: 255
+  semantic_ignore_index: 255
+validation:
+  use_test: false
+holdout:
+  second_protocol: outputs/v2_readiness/V2_HOLDOUT_PROTOCOL.json
+quick:
+  epochs: 1
+  max_samples_per_dataset: 24
+inference:
+  tile_size: 512
+  overlap: 64
+  batch_size: 4
+thresholds:
+  any_change: 0.75
+  new_building: 0.6
+  demolition: 0.35
+vectorization:
+  min_mapping_unit_m2: 10.0

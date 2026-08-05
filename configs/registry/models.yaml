@@ -1,0 +1,146 @@
+schema_version: "1.0"
+allowed_status:
+  - active
+  - archived
+  - validation_candidate
+  - external_pretrained
+  - training_pending
+  - blocked
+  - deprecated
+models:
+  - model_id: dsifn_binary_v1
+    display_name: DSIFN Binary Change Teacher
+    task: [any_change]
+    architecture: multitask_siamese_unet
+    encoder: resnet34
+    heads: [any_change]
+    training_datasets: [dsifn]
+    validation_datasets: [dsifn]
+    test_status: spent_test
+    run_id: "20260725_232317"
+    checkpoint: outputs/pretraining/change/20260725_232317/checkpoints/best_binary_change.pth
+    checkpoint_sha256: d458e9b6bed969fcf79a38603608834b5bcafd8c055ba6b61ffcba8387819210
+    config: outputs/pretraining/change/20260725_232317/resolved_config.yaml
+    metrics_file: outputs/pretraining/change/20260725_232317/metrics/combined.json
+    best_metric: {name: binary_pr_auc, value: 0.9156440659989253}
+    best_epoch: 29
+    thresholds: {any_change: 0.75}
+    status: archived
+    supersedes: null
+    superseded_by: full20_multisource_v2
+    inference_ready: true
+    known_limitations:
+      - DSIFN final test is spent and showed a material generalization gap.
+      - Binary-only teacher; directional and semantic heads are unsupported.
+    visualization_root: outputs/pretraining/change/20260725_232317
+    notes: Candidate teacher retained for binary initialization; forbidden for further test-driven tuning.
+
+  - model_id: s2looking_directional_v1
+    display_name: S2Looking Directional Change Teacher
+    task: [any_change, new_building, demolition]
+    architecture: multitask_siamese_unet
+    encoder: resnet34
+    heads: [any_change, new_building, demolition]
+    training_datasets: [s2looking]
+    validation_datasets: [s2looking]
+    test_status: spent_test
+    run_id: "20260721_232528"
+    checkpoint: outputs/models/urban_change_v1_s2looking/checkpoints/best_directional_change.pth
+    checkpoint_sha256: 4fd4c10cc8ceb0ce66c10c7e1f6bde4902404ff465a01423bdf4585653a6978c
+    config: outputs/pretraining/change_s2looking/20260721_232528/resolved_config.yaml
+    metrics_file: outputs/pretraining/change_s2looking/20260721_232528/metrics/combined.json
+    best_metric: {name: new_pr_auc, value: 0.393635}
+    best_epoch: 22
+    thresholds: {any_change: 0.50, new_building: 0.60, demolition: 0.30}
+    status: archived
+    supersedes: null
+    superseded_by: full20_multisource_v2
+    inference_ready: true
+    known_limitations:
+      - S2Looking final test is spent and cannot be reused for tuning.
+      - Demolition performance is weaker than new-building performance.
+      - Historical new/demolition negative gradient-cosine rate was 32 percent.
+    visualization_root: outputs/pretraining/change_s2looking/20260721_232528
+    notes: Directional teacher and initialization source; not a current final model.
+
+  - model_id: full20_multisource_v2
+    display_name: Full20 Multi-source Urban Change V2
+    task: [any_change, new_building, demolition, semantic_t1, semantic_t2, uncertainty]
+    architecture: multitask_siamese_unet
+    encoder: resnet34
+    heads: [any_change, new_building, demolition, semantic_t1, semantic_t2, uncertainty]
+    training_datasets: [dsifn, s2looking, second]
+    validation_datasets: [dsifn, s2looking, second_dev_validation]
+    test_status: locked_holdout
+    run_id: "20260727_001029"
+    checkpoint: outputs/pretraining/change_v2/20260727_001029/checkpoints/best_v2_multisource_change.pth
+    checkpoint_sha256: 70040ca0e688537fd63479589690d5be5eefef859f39763c6b45a09852bc2621
+    config: outputs/pretraining/change_v2/20260727_001029/resolved_config.yaml
+    metrics_file: outputs/pretraining/change_v2/20260727_001029/metrics/combined.json
+    best_metric: {name: new_pr_auc, value: 0.784629376425548}
+    best_epoch: 19
+    thresholds: {any_change: 0.75, new_building: 0.60, demolition: 0.35}
+    status: validation_candidate
+    supersedes: [dsifn_binary_v1, s2looking_directional_v1]
+    superseded_by: null
+    inference_ready: true
+    known_limitations:
+      - Validation-only candidate; not test-proven and not a final model.
+      - Surface-state vacant/construction/building probabilities are not available.
+      - Tongzhou outputs are candidate building-change objects, not confirmed buildings.
+    visualization_root: outputs/pretraining/change_v2/20260727_001029
+    notes: Current core multi-source candidate for building-change screening.
+
+  - model_id: rsbuilding_swin_t_pretrained
+    display_name: RSBuilding Swin-T Geometry Teacher
+    task: [building_probability, building_mask, building_boundary]
+    architecture: rsbuilding_swin_t
+    encoder: swin_t
+    heads: [building_probability, building_mask, building_boundary]
+    training_datasets: [rsbuilding_pretraining]
+    validation_datasets: []
+    test_status: locked_holdout
+    run_id: null
+    checkpoint: D:/Data Set/RSBuilding/weights/Swin_T.pth
+    checkpoint_sha256: null
+    config: null
+    metrics_file: null
+    best_metric: null
+    best_epoch: null
+    thresholds: {}
+    status: external_pretrained
+    supersedes: null
+    superseded_by: null
+    inference_ready: false
+    known_limitations:
+      - Must run in C:/Users/ljz52/.conda/envs/rsbuilding-win/python.exe.
+      - Current CUDA runtime is missing nvrtc-builtins64_117.dll.
+    visualization_root: null
+    notes: Static geometry teacher; deliberately isolated from .venv-gpu.
+
+  - model_id: rsbuilding_swin_t_whu_candidate
+    display_name: RSBuilding WHU Fine-tune Candidate
+    task: [building_probability, building_mask, building_boundary]
+    architecture: rsbuilding_swin_t
+    encoder: swin_t
+    heads: [building_probability, building_mask, building_boundary]
+    training_datasets: [whu_building]
+    validation_datasets: [whu_building]
+    test_status: locked_holdout
+    run_id: null
+    checkpoint: null
+    checkpoint_sha256: null
+    config: configs/rsbuilding_whu_windows.yaml
+    metrics_file: null
+    best_metric: null
+    best_epoch: null
+    thresholds: {}
+    status: blocked
+    supersedes: rsbuilding_swin_t_pretrained
+    superseded_by: null
+    inference_ready: false
+    known_limitations:
+      - Smoke pending CUDA NVRTC fix; no successful fine-tune checkpoint exists.
+      - WHU Test remains locked with zero pixel reads.
+    visualization_root: outputs/v2_readiness
+    notes: assets_ready, dataset_ready, manifest_ready, smoke_pending_cuda_nvrtc_fix.

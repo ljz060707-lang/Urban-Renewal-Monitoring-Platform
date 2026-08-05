@@ -1,0 +1,21 @@
+schema_version: "0.5.0"
+source_run: "20260721_232528"
+source_checkpoint: "outputs/pretraining/change_s2looking/20260721_232528/checkpoints/best_directional_change.pth"
+split_policy:
+  train: 3500
+  validation: 500
+  test: 1000
+  test_used_for_development: false
+smoke_policy:
+  initial_epochs: 1
+  epoch_2_gate:
+    binary_pr_auc_min_delta: -0.002
+    new_pr_auc_min_delta: -0.002
+    demolition_pr_auc_min_delta: 0.0
+  long_training_requires_smoke_acceptance: true
+experiments:
+  A0: {name: source_baseline, trainable_scope: none, epochs: 0}
+  A1: {name: demolition_head_only, trainable_scope: demolition_head, epochs: 1}
+  A2: {name: directional_heads_only, trainable_scope: [binary_change_head, new_building_head, demolition_head], epochs: 1}
+  A3: {name: shared_decoder_and_heads, frozen_scope: encoder, epochs: 1}
+  A4: {name: full_model_conservative, trainable_scope: all, epochs: 1}

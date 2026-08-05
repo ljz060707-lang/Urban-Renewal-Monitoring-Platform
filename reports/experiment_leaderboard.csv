@@ -1,0 +1,13 @@
+﻿run_id,experiment_name,checkpoint_sha,trainable_parameters,epochs,training_minutes,learning_rate,hard_fraction,sampling_strategy,status,abort_reason,accepted,binary_pr_auc,binary_f1,delta_binary,new_pr_auc,new_f1,delta_new,demolition_pr_auc,demolition_f1,delta_demolition,improvement_per_gpu_hour
+20260721_165658,,,,1,0.0,,,,success,,False,,,,,,,,,,
+20260721_232528,,,,30,0.0,,,,success,,False,,,,,,,,,,
+20260723_001500,hard_example_finetune,,,0,,,,hard_example_finetune,running,,False,,,,,,,,,,
+20260723_104143,hard_example_finetune,8078eb08a17897126ea3904d1b5d79b0c86b8e94454bbfe41b8ac347c99fc5c2,,2,0.0,,,hard_example_finetune,success,,False,,,,,,,,,,
+20260723_114437,hard_example_finetune,cee061e0dcc291f94b1ad5a0d202bfb3a4421752c5d6e82c0a09dbf885397df7,,6,0.0,,,hard_example_finetune,success,,False,,,,,,,,,,
+20260723_133328,hard_example_finetune,,,0,,,,hard_example_finetune,running,,False,,,,,,,,,,
+20260723_140858,hard_example_finetune,706c370608ae8108bd22e19cb65c00aa747c1e2107eec4a48ebccc11944ed052,,2,0.0,,,hard_example_finetune,success,,False,,,,,,,,,,
+20260723_151941,hard_example_finetune,706c370608ae8108bd22e19cb65c00aa747c1e2107eec4a48ebccc11944ed052,,2,0.0,,,hard_example_finetune,success,,False,0.3669704804029189,0.42135863366365967,-2.9519597081084648e-05,0.3936416184186795,0.44667967291109884,4.1618418679501e-05,0.21748884580687422,0.3183388614878041,-1.1154193125778589e-05,
+20260723_162348,demolition_head_finetune,,33.0,0,,,0.01,demolition_head_finetune,failed,,False,,,,,,,,,,
+20260723_233235,demolition_head_finetune,,33.0,0,,,0.01,demolition_head_finetune,failed,,False,,,,,,,,,,
+20260724_012518,demolition_head_finetune,,33.0,0,,,0.01,demolition_head_finetune,failed,,False,,,,,,,,,,
+20260724_013154,demolition_head_finetune,6e78a05c52fd5edd3ce31288e70a9e2f9b605058cd2b1a29bfc09f390016db4f,33.0,1,3.1060292933339952,1e-05,0.01,demolition_head_finetune,success,,True,0.36709148162632915,0.42136418299830675,9.148162632915957e-05,0.3937598774250989,0.4467047883386177,0.00015987742509887548,0.21861939888290965,0.3189277231082457,0.0011193988829096557,0.02162372812089159

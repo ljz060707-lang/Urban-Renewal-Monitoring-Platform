@@ -1,0 +1,50 @@
+schema_version: 0.5.0
+output_root: outputs/pretraining/change
+datasets:
+  s2looking:
+    enabled: false
+    root: D:/Data Set/S2Looking
+  second:
+    enabled: false
+    root: D:/Data Set/SECOND
+    building_class_id: null
+    class_mapping_file: null
+    mapping_verified: false
+  dsifn:
+    enabled: true
+    root: D:/Data Set/DSIFN-Dataset
+audit:
+  preview_count: 30
+  second_preview_count: 30
+  s2looking_mismatch_warning_ratio: 0.001
+  s2looking_mismatch_failure_ratio: 0.01
+model:
+  architecture: multitask_siamese_unet
+  encoder: resnet34
+  pretrained: false
+  semantic_classes: 7
+training:
+  seed: 42
+  epochs: 30
+  batch_size: auto
+  num_workers: 0
+  patch_size: 256
+  learning_rate: 0.0002
+  weight_decay: 0.0001
+  amp: true
+  gradient_clip_norm: 1.0
+  early_stopping_patience: 7
+  save_every_epochs: 1
+  keep_epoch_checkpoints: 3
+  resume: true
+  dataset_sampling:
+    s2looking: 2.0
+    second: 1.0
+    dsifn: 1.0
+quick:
+  train_samples_per_dataset: 32
+  validation_samples_per_dataset: 8
+  epochs: 1
+gpu:
+  allow_tf32: true
+  cudnn_benchmark: true

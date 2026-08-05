@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime
+from copy import deepcopy
 import csv
 import json
 from pathlib import Path
@@ -15,6 +16,7 @@ from PIL import Image, ImageDraw
 from .adapters.base import read_binary
 from .adapters.second import semantic_ids
 from .registry import enabled_adapters, load_change_config
+from .second_dev_split import build_or_load_second_development_split
 from .schema import CHANGE_INDEX_COLUMNS, ChangeSample, validate_sample
 
 
@@ -69,7 +71,7 @@ def _preview(path: Path, panels: list[tuple[str, Image.Image]]) -> None:
     canvas.save(path)
 
 
-def _s2_audit(records: list[ChangeSample], audit: Path) -> None:
+def _s2_audit(records: list[ChangeSample], audit: Path, config: dict) -> None:
     rows, inconsistent = [], []
     for sample in records:
         cd, new, dem = _mask(sample.gt_cd_path), _mask(sample.gt_new_path), _mask(sample.gt_dem_path)
@@ -85,14 +87,18 @@ def _s2_audit(records: list[ChangeSample], audit: Path) -> None:
     pd.DataFrame(inconsistent, columns=list(rows[0]) if rows else []).to_csv(
         audit / "s2looking_inconsistent.csv", index=False, encoding="utf-8-sig"
     )
+    maximum = max((row["logic_mismatch_ratio"] for row in rows), default=0.0)
+    failure = float(config.get("s2looking_mismatch_failure_ratio", 0.01))
+    if maximum > failure:
+        raise ValueError(f"S2Looking GT_CD mismatch {maximum:.6f} exceeds failure threshold {failure:.6f}")
 
 
-def _second_audit(records: list[ChangeSample], audit: Path, config: dict, preview_count: int) -> None:
+def _second_audit(records: list[ChangeSample], audit: Path, config: dict, preview_count: int, color_mapping) -> None:
     distribution: Counter[tuple[str, int]] = Counter()
     transitions: Counter[tuple[int, int]] = Counter()
     for sample in records:
-        t1 = semantic_ids(sample.gt_t1_path)
-        t2 = semantic_ids(sample.gt_t2_path)
+        t1 = semantic_ids(sample.gt_t1_path, color_mapping)
+        t2 = semantic_ids(sample.gt_t2_path, color_mapping)
         for value, count in zip(*np.unique(t1, return_counts=True)):
             distribution[("t1", int(value))] += int(count)
         for value, count in zip(*np.unique(t2, return_counts=True)):
@@ -115,15 +121,28 @@ def _second_audit(records: list[ChangeSample], audit: Path, config: dict, previe
         "verified_by_user": bool(config.get("mapping_verified", False)),
     }
     (audit / "second_color_mapping.json").write_text(json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8")
+    (audit / "SECOND_MAPPING_AUDIT.json").write_text(
+        json.dumps(
+            {
+                **mapping,
+                "semantic_supervision": "available",
+                "directional_supervision": "available" if mapping["verified_by_user"] else "skipped_no_supervision",
+                "reason": "" if mapping["verified_by_user"] else "mapping_verified=false; building class is not guessed",
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     preview_root = audit / "second_previews"
     for index, sample in enumerate(records[:preview_count]):
         _preview(preview_root / f"{index:03d}_{sample.sample_id.rsplit(':', 1)[-1]}.jpg", [
             ("T1", _rgb(sample.t1_path)), ("T2", _rgb(sample.t2_path)),
-            ("GT_T1", _colorize(semantic_ids(sample.gt_t1_path), semantic=True)),
-            ("GT_T2", _colorize(semantic_ids(sample.gt_t2_path), semantic=True)),
+            ("GT_T1", _colorize(semantic_ids(sample.gt_t1_path, color_mapping), semantic=True)),
+            ("GT_T2", _colorize(semantic_ids(sample.gt_t2_path, color_mapping), semantic=True)),
             ("GT_CD", _colorize(_mask(sample.gt_cd_path))),
-            ("GT_NEW", _colorize(_mask(sample.gt_new_path))),
-            ("GT_DEM", _colorize(_mask(sample.gt_dem_path))),
+            ("GT_NEW", _colorize(_mask(sample.gt_new_path))) if sample.gt_new_path else ("GT_NEW PENDING", Image.new("RGB", (256, 256), "#222831")),
+            ("GT_DEM", _colorize(_mask(sample.gt_dem_path))) if sample.gt_dem_path else ("GT_DEM PENDING", Image.new("RGB", (256, 256), "#222831")),
         ])
 
 
@@ -139,17 +158,47 @@ def _dsifn_audit(records: list[ChangeSample], audit: Path, preview_count: int) -
         ])
 
 
-def prepare_public_change(config_path: str | Path, *, output_root: str | Path | None = None, run_id: str | None = None) -> Path:
+def _quick_records(records: list[ChangeSample], config: dict) -> list[ChangeSample]:
+    quick = config.get("quick", {})
+    limits = {"train": int(quick.get("train_samples_per_dataset", 32)), "val": int(quick.get("validation_samples_per_dataset", 8))}
+    selected = []
+    for split in ("train", "val"):
+        selected.extend(sorted((item for item in records if item.split.casefold() == split), key=lambda item: item.sample_id)[:limits[split]])
+    return selected
+
+
+def prepare_public_change(config_path: str | Path, *, output_root: str | Path | None = None, run_id: str | None = None, quick: bool = False) -> Path:
     config = load_change_config(config_path)
+    if quick:
+        config = deepcopy(config)
+        quick_values = config.get("quick", {})
+        limits = {
+            "train": int(quick_values.get("train_samples_per_dataset", 32)),
+            "val": int(quick_values.get("validation_samples_per_dataset", 8)),
+        }
+        for dataset_name, values in config.get("datasets", {}).items():
+            if values.get("enabled") and dataset_name != "second":
+                values["max_samples_per_split"] = limits
     run = create_change_run(output_root or config.get("output_root", "outputs/pretraining/change"), run_id)
     normalized_root = run / "prepared" / "normalized_labels"
     normalized: list[ChangeSample] = []
     raw_by_dataset: dict[str, list[ChangeSample]] = {}
+    second_development = None
     adapters = enabled_adapters(config)
     for adapter in adapters:
         records = adapter.discover()
+        if adapter.dataset_name == "second":
+            frozen = build_or_load_second_development_split(records, adapter)
+            records = frozen.records
+            second_development = frozen.audit
+        if quick:
+            records = _quick_records(records, config)
+            if not records:
+                raise ValueError(f"{adapter.dataset_name}: quick mode requires train and validation samples")
         raw_by_dataset[adapter.dataset_name] = records
         for record in records:
+            if not record.source_split:
+                record = replace(record, source_split=record.split)
             item = adapter.normalize(record, normalized_root / adapter.dataset_name)
             validate_sample(item)
             normalized.append(item)
@@ -164,19 +213,22 @@ def prepare_public_change(config_path: str | Path, *, output_root: str | Path | 
     summary.to_csv(run / "dataset_audit" / "public_change_summary.csv", index=False, encoding="utf-8-sig")
     by_name = {adapter.dataset_name: adapter for adapter in adapters}
     if "s2looking" in raw_by_dataset:
-        _s2_audit(normalized_for(normalized, "s2looking"), run / "dataset_audit")
+        _s2_audit(normalized_for(normalized, "s2looking"), run / "dataset_audit", config.get("audit", {}))
     if "second" in raw_by_dataset:
         _second_audit(
             normalized_for(normalized, "second"), run / "dataset_audit",
-            by_name["second"].config, int(config.get("audit", {}).get("second_preview_count", 30)),
+            by_name["second"].config, int(config.get("audit", {}).get("second_preview_count", 30)), by_name["second"].color_mapping,
         )
     if "dsifn" in raw_by_dataset:
         _dsifn_audit(normalized_for(normalized, "dsifn"), run / "dataset_audit", int(config.get("audit", {}).get("preview_count", 30)))
     manifest = {
         "run_id": run.name, "status": "prepared", "config": str(Path(config_path).resolve()),
-        "sample_count": len(normalized), "datasets": sorted(raw_by_dataset),
+        "sample_count": len(normalized), "datasets": sorted(raw_by_dataset), "quick": quick,
         "index": str((run / "prepared" / "public_change_index.csv").resolve()),
+        "validation_source_by_dataset": {"dsifn": "official_validation", "s2looking": "official_validation", "second": "frozen_train_dev_validation"},
     }
+    if second_development:
+        manifest["second_development_validation"] = second_development
     (run / "RUN_MANIFEST.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return run
 

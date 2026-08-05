@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,40 @@ def sha256_file(path: Path) -> str:
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""): digest.update(block)
     return digest.hexdigest()
+
+
+def load_label_contract(contract: dict[str, Any] | Path | str | None) -> dict[str, Any]:
+    """Return an explicit mask polarity contract.
+
+    The historical adapter used ``label > 0`` unconditionally.  That is kept
+    as the backwards-compatible default for old scratch fixtures, but formal
+    WHU recovery runs must pass ``SELECTED_WHU_LABEL_CONTRACT.json`` so a local
+    inverted 0/1 mask cannot silently become all-positive supervision.
+    """
+    if contract is None:
+        return {"label_polarity": "nonzero_is_building", "building_values": [1], "background_values": [0], "source": "legacy_default"}
+    if isinstance(contract, (str, Path)):
+        path = Path(contract)
+        contract = json.loads(path.read_text(encoding="utf-8"))
+        contract = dict(contract)
+        contract.setdefault("source", str(path.resolve()))
+    if not isinstance(contract, dict):
+        raise TypeError("label_contract must be a mapping or JSON path")
+    values = dict(contract)
+    building = values.get("building_values")
+    background = values.get("background_values")
+    if not building or not background:
+        polarity = values.get("label_polarity")
+        if polarity == "zero_is_building":
+            building, background = [0], [1]
+        elif polarity == "nonzero_is_building":
+            building, background = [1], [0]
+        else:
+            raise ValueError("label contract must specify building_values/background_values or a known label_polarity")
+    values["building_values"] = [int(v) for v in building]
+    values["background_values"] = [int(v) for v in background]
+    values.setdefault("label_polarity", "explicit_values")
+    return values
 
 
 def _paired_files(root: Path, split: str) -> list[tuple[Path, Path]]:
@@ -65,10 +100,22 @@ def build_whu_manifest(root: Path, output: Path, *, train_limit: int | None = No
 
 
 class WHUBuildingDataset(Dataset):
-    def __init__(self, rows: list[dict[str, Any]], *, image_size: int = 256, train: bool = False) -> None:
+    def __init__(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        image_size: int = 256,
+        train: bool = False,
+        label_contract: dict[str, Any] | Path | str | None = None,
+        native_normalization: bool = False,
+        duplicate_temporal_input: bool = False,
+    ) -> None:
         self.rows = rows
         self.image_size = int(image_size)
         self.train = bool(train)
+        self.label_contract = load_label_contract(label_contract)
+        self.native_normalization = bool(native_normalization)
+        self.duplicate_temporal_input = bool(duplicate_temporal_input)
         if any(str(r.get("split")) == "test" for r in rows):
             raise ValueError("WHU dataset refuses test rows")
 
@@ -80,8 +127,35 @@ class WHUBuildingDataset(Dataset):
         row = self.rows[index]
         with rasterio.open(row["image_path"]) as ds: image = ds.read(out_shape=(3, self.image_size, self.image_size), resampling=Resampling.bilinear)
         with rasterio.open(row["label_path"]) as ds: label = ds.read(1, out_shape=(self.image_size, self.image_size), resampling=Resampling.nearest)
-        image = np.asarray(image, dtype="float32") / 255.0
-        label = (np.asarray(label) > 0).astype("float32")
+        image = np.asarray(image, dtype="float32")
+        if self.native_normalization:
+            # Native RSBuilding consumes two identical RGB observations as a
+            # six-channel tensor and normalizes after BGR->RGB conversion.
+            # Keep this opt-in: the project scratch U-Net still expects [0,1].
+            if image.shape[0] != 3:
+                raise ValueError(f"WHU adapter expects 3 RGB bands, got {image.shape[0]}")
+            image = image[::-1].copy() if self.label_contract.get("native_bgr_to_rgb", True) else image
+            if self.duplicate_temporal_input:
+                image = np.concatenate([image, image], axis=0)
+            default_mean = [123.675, 116.28, 103.53] * (2 if self.duplicate_temporal_input else 1)
+            default_std = [58.395, 57.12, 57.375] * (2 if self.duplicate_temporal_input else 1)
+            mean = np.asarray(self.label_contract.get("native_mean", default_mean), dtype="float32")[:, None, None]
+            std = np.asarray(self.label_contract.get("native_std", default_std), dtype="float32")[:, None, None]
+            if mean.shape[0] != image.shape[0] or std.shape[0] != image.shape[0]:
+                raise ValueError(
+                    "native normalization channel mismatch: "
+                    f"image={image.shape[0]} mean={mean.shape[0]} std={std.shape[0]}"
+                )
+            image = (image - mean) / np.maximum(std, 1e-6)
+        else:
+            image = image / 255.0
+        values = np.asarray(label)
+        building_values = np.asarray(self.label_contract["building_values"])
+        label = np.isin(values, building_values).astype("float32")
+        allowed = np.concatenate([building_values, np.asarray(self.label_contract["background_values"])])
+        unknown = np.setdiff1d(np.unique(values), np.unique(allowed))
+        if unknown.size:
+            raise ValueError(f"label contains values outside contract: {unknown.tolist()}")
         if self.train and (index * 17) % 2 == 0:
             image = image[:, :, ::-1].copy(); label = label[:, ::-1].copy()
         target = torch.from_numpy(label[None])
@@ -93,5 +167,10 @@ class WHUBuildingDataset(Dataset):
             "boundary": torch.from_numpy(boundary[None].astype("float32")),
             "distance": torch.from_numpy(np.tanh(distance / 10.0)[None].astype("float32")),
             "sample_id": row["sample_id"], "split": row["split"],
-            "metadata": {key: ("" if value is None else str(value)) for key, value in row.items()},
+            "metadata": {
+                **{key: ("" if value is None else str(value)) for key, value in row.items()},
+                "label_polarity": str(self.label_contract.get("label_polarity")),
+                "label_contract_source": str(self.label_contract.get("source", "inline")),
+                "native_normalization": str(self.native_normalization).lower(),
+            },
         }

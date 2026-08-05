@@ -16,6 +16,12 @@ review/glm_scores.jsonl
 .vscode/
 .pbt-*/
 .pytest*/
+.v2nativefulltmp/
+.v2nativefulltmp*/
+.v2nativefulltmp*_result.txt
+.v2nativeunit_tmp/
+.v2native_smoke_tmp/
+.v2native_smoke_result.txt
 .test_tmp*/
 .tmp*/
 .urrs-*/

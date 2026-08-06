@@ -80,7 +80,8 @@ def stable_hash(value: Any) -> str:
 def atomic_write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     part = path.with_name(path.name + ".part")
-    part.write_text(text, encoding="utf-8", newline="")
+    with part.open("w", encoding="utf-8", newline="") as handle:
+        handle.write(text)
     os.replace(part, path)
 
 

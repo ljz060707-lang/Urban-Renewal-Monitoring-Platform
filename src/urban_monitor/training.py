@@ -17,6 +17,7 @@ import yaml
 
 from .dataset import CocoBuildingDataset, collate_fn
 from .model import build_model
+from .compat import autocast_context, create_grad_scaler
 
 
 def _seed_everything(seed: int) -> None:
@@ -188,7 +189,7 @@ def train_teacher(
         best_epoch = int(state.get("best_epoch", 0))
         resumed = True
     use_amp = bool(amp and device.type == "cuda")
-    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+    scaler = create_grad_scaler(device, use_amp)
     logs: list[dict[str, Any]] = []
     patience = 0
     writer = None
@@ -214,7 +215,7 @@ def train_teacher(
                 images = [image.to(device) for image in images]
                 targets = [{key: value.to(device) for key, value in target.items()} for target in targets]
                 optimizer.zero_grad(set_to_none=True)
-                with torch.amp.autocast(device_type=device.type, enabled=use_amp):
+                with autocast_context(device, use_amp):
                     losses = model(images, targets)
                     loss = sum(losses.values())
                 if not torch.isfinite(loss):

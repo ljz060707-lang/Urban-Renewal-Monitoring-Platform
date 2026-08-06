@@ -8,6 +8,8 @@ from pathlib import Path
 import torch
 import yaml
 
+from urban_monitor.compat import create_grad_scaler
+
 from ..models.surface_state_net import SurfaceStateNet
 from ..models.temporal_change_head import TemporalChangeHead
 from ..models.tfr import TemporalFeatureRefinement
@@ -190,7 +192,7 @@ def _prepare_joint_run(
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=max(1, int(config["epochs"]))
     )
-    scaler = torch.amp.GradScaler("cuda", enabled=False)
+    scaler = create_grad_scaler("cpu", False)
     payload = {
         "model_state_dict": model.state_dict(),
         "tfr_state_dict": tfr.state_dict() if tfr is not None else None,
@@ -329,7 +331,7 @@ def run_joint_from_selection(
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=max(1, int(config["epochs"]))
     )
-    scaler = torch.amp.GradScaler("cuda", enabled=False)
+    scaler = create_grad_scaler("cpu", False)
     payload = dict(state)
     payload.update(
         optimizer_state_dict=optimizer.state_dict(),
@@ -346,4 +348,3 @@ def run_joint_from_selection(
     config_path = output_root / "joint_config.yaml"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
     return train(config_path, repo, run_dir=str(output_root))
-

@@ -8,6 +8,8 @@ from pathlib import Path
 
 import numpy as np
 
+from urban_monitor.compat import autocast_context, create_grad_scaler
+
 
 def _latest_audit(project_root: Path):
     paths = sorted((project_root / "outputs" / "urrs" / "audits").glob("construction_activity_*"))
@@ -70,7 +72,7 @@ def run_20_step_smoke(project_root: Path, *, device="auto", steps=20, image_size
     model = ConstructionElementNet(width=8).to(selected_device)
     criterion = PartialLabelLoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.01)
-    scaler = torch.amp.GradScaler("cuda", enabled=selected_device.type == "cuda")
+    scaler = create_grad_scaler(selected_device, selected_device.type == "cuda")
     iterator = iter(loader); logs = []; probability_min = 1.0; probability_max = 0.0
     model.train()
     for step in range(20):
@@ -79,7 +81,7 @@ def run_20_step_smoke(project_root: Path, *, device="auto", steps=20, image_size
             iterator = iter(loader); batch = next(iterator)
         image = batch["image"].to(selected_device); texture = batch["texture"].to(selected_device); target = batch["target"].to(selected_device)
         optimizer.zero_grad(set_to_none=True)
-        with torch.amp.autocast("cuda", enabled=selected_device.type == "cuda"):
+        with autocast_context(selected_device, selected_device.type == "cuda"):
             output = model(image, "ucs", texture)
             losses = criterion(output, target, "ucs")
         if not torch.isfinite(losses["total"]):

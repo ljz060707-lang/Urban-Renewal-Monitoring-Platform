@@ -23,6 +23,8 @@ from typing import Any, Iterable, Mapping, Sequence
 import numpy as np
 import yaml
 
+from urban_monitor.compat import autocast_context, create_grad_scaler
+
 
 TOOL_PATH = Path(__file__).resolve()
 PROJECT_ROOT = TOOL_PATH.parents[1]
@@ -170,14 +172,12 @@ def _loader(manifest: Path, image_size: int, batch_size: int, rgb_mapping: Seque
 
 def _amp_context(device, enabled: bool):
     import torch
-
-    return torch.amp.autocast("cuda", enabled=bool(enabled and device.type == "cuda"))
+    return autocast_context(device, bool(enabled and device.type == "cuda"))
 
 
 def _new_scaler(device, enabled: bool):
     import torch
-
-    return torch.amp.GradScaler("cuda", enabled=bool(enabled and device.type == "cuda"))
+    return create_grad_scaler(device, bool(enabled and device.type == "cuda"))
 
 
 def _selection_score(metrics: Mapping[str, Any]) -> float:

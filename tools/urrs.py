@@ -15,6 +15,18 @@ from urban_renewal.review.app import prepare
 from urban_renewal.review.review_store import ReviewStore
 from urban_renewal.review.finalization import finalize_review
 from urban_renewal.construction.cli import add_construction_parser,handle_construction
+from urban_monitor.building_foundation_v2.onboarding import (
+    DEFAULT_NATIVE_PYTHON,
+    DEFAULT_NATIVE_REPO,
+    create_readiness_run,
+    finalize_readiness,
+    input_contract,
+    local_domain_protocol,
+    prepare_annotation_package,
+    run_readiness,
+    satellite_infer,
+    satellite_preflight,
+)
 
 def main(argv=None):
     parser=argparse.ArgumentParser(prog='urrs.py',description='Urban Renewal Remote Sensing System canonical entrypoint')
@@ -27,6 +39,18 @@ def main(argv=None):
     sub.add_parser('overlay').add_argument('action',choices=['run'])
     rv=sub.add_parser('review'); rv.add_argument('action',choices=['build','serve','status','export','finalize']); rv.add_argument('--review-dir'); rv.add_argument('--port',type=int,default=8765); rv.add_argument('--open-browser',action='store_true'); rv.add_argument('--review-file')
     add_construction_parser(sub)
+    b=sub.add_parser('building', help='Frozen B0 building-foundation onboarding and explicit GeoTIFF inference')
+    b.add_argument('action', choices=['readiness','finalize','satellite-preflight','satellite-infer','prepare-annotation-package','status'])
+    b.add_argument('--run-dir')
+    b.add_argument('--image')
+    b.add_argument('--output')
+    b.add_argument('--date', default='2024-01-01')
+    b.add_argument('--rgb-bands', default='1,2,3')
+    b.add_argument('--native-python', default=str(DEFAULT_NATIVE_PYTHON))
+    b.add_argument('--native-repo', default=str(DEFAULT_NATIVE_REPO))
+    b.add_argument('--config', default=str(PROJECT_ROOT/'outputs/v2_readiness/rsbuilding/whu/work_dirs/swin_t_whu_pilot5000_20260728_110750/Swin_T_whu_windows_pilot5000.py'))
+    b.add_argument('--device', default='cuda:0')
+    b.add_argument('--batch-size', type=int, default=2)
     sc=sub.add_parser('system'); sc.add_argument('action',choices=['finalize']); sc.add_argument('--review-file')
     args=parser.parse_args(argv); root=PROJECT_ROOT; review_dir=Path(args.review_dir) if getattr(args,'review_dir',None) else root/'outputs/urrs/review/tongzhou_20260801'
     try:
@@ -53,6 +77,41 @@ def main(argv=None):
                 confirmation=json.loads(Path(args.review_file).read_text(encoding='utf-8')) if args.review_file else {'all_mandatory_reviewed':False}
                 result=finalize_review(root,review_dir,confirmation)
         elif args.command=='construction': result=handle_construction(root,args)
+        elif args.command=='building':
+            def _run_dir() -> Path:
+                if getattr(args, 'run_dir', None):
+                    value = Path(args.run_dir)
+                    return value if value.is_absolute() else root / value
+                return create_readiness_run(root)
+            if args.action == 'status':
+                candidates = sorted((root/'outputs/readiness').glob('building_foundation_v2_satellite_onboarding_*/10_acceptance/FINAL_SATELLITE_ONBOARDING_READINESS.json'), key=lambda p: p.stat().st_mtime, reverse=True)
+                if not candidates:
+                    result = {'status': 'blocked', 'reason': 'no satellite onboarding readiness run found'}
+                else:
+                    path = candidates[0]
+                    result = json.loads(path.read_text(encoding='utf-8')); result['receipt_path'] = str(path.resolve())
+            elif args.action == 'readiness':
+                requested = Path(args.run_dir) if getattr(args, 'run_dir', None) else None
+                result = run_readiness(root, requested=requested, native_python=Path(args.native_python), native_repo=Path(args.native_repo))
+            elif args.action == 'finalize':
+                if not args.run_dir: raise ValueError('--run-dir is required for building finalize')
+                run = Path(args.run_dir); run = run if run.is_absolute() else root / run
+                if not (run/'06_tiled_inference_smoke/TILED_INFERENCE_EQUIVALENCE.json').exists():
+                    raise FileNotFoundError('readiness smoke receipt is missing; refusing to finalize')
+                # Refresh governance after the user commits source changes;
+                # this does not rerun inference or read any satellite pixels.
+                from urban_monitor.building_foundation_v2.onboarding import governance
+                governance(root, run)
+                result = finalize_readiness(root, run); result['run_dir'] = str(run.resolve()); result['smoke_rerun'] = False; result['user_satellite_pixel_reads'] = 0
+            elif args.action == 'prepare-annotation-package':
+                run = _run_dir(); prepare_annotation_package(root, run); result = {'status': 'pass', 'run_dir': str(run.resolve()), 'annotation_contract': str((run/'07_annotation_contract').resolve()), 'test_pixel_reads': 0}
+            elif args.action == 'satellite-preflight':
+                if not args.image: raise ValueError('--image is required for satellite-preflight')
+                run = _run_dir(); result = satellite_preflight(root, run, Path(args.image), rgb_bands=tuple(int(v.strip()) for v in args.rgb_bands.split(',')))
+                result['run_dir'] = str(run.resolve())
+            else:
+                if not args.image: raise ValueError('--image is required for satellite-infer')
+                run = _run_dir(); config = Path(args.config); result = satellite_infer(root, run, Path(args.image), native_python=Path(args.native_python), native_repo=Path(args.native_repo), config=config, date=args.date, device=args.device, batch_size=args.batch_size); result['run_dir'] = str(run.resolve())
         else:
             result=finalize(root)
             if args.review_file:
@@ -77,7 +136,7 @@ def main(argv=None):
         result={'status':'failed','error':f'{type(exc).__name__}: {exc}'}; print(json.dumps(result,ensure_ascii=False,indent=2)); return 1
     print(json.dumps(result,ensure_ascii=False,indent=2))
     command_status=result.get('status',result.get('geometry_numerical_status',result.get('alignment_status','pass')))
-    command_completed=command_status in ('pass','success','ready_for_pixelwise_temporal_tracking') or (isinstance(command_status,str) and command_status.startswith('TONGZHOU_CONSTRUCTION_'))
+    command_completed=command_status in ('pass','success','ready_for_pixelwise_temporal_tracking','awaiting_user_commit_after_compatibility_fix','satellite_onboarding_ready_b0_frozen') or (isinstance(command_status,str) and command_status.startswith('TONGZHOU_CONSTRUCTION_'))
     command_blocked=isinstance(command_status,str) and (command_status.startswith('FORMAL_TRAINING_BLOCKED_') or command_status in ('blocked','not_run'))
     return 0 if command_completed or command_blocked else 1
 if __name__=='__main__': raise SystemExit(main())

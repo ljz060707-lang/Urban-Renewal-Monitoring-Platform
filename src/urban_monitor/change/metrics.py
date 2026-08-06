@@ -5,6 +5,8 @@ import math
 
 import numpy as np
 
+from ..compat import trapezoid_integral
+
 
 def _scores(tp: int, fp: int, fn: int, tn: int) -> dict[str, float]:
     precision = tp / max(1, tp + fp)
@@ -29,7 +31,7 @@ def _pr_auc(probabilities: list[np.ndarray], labels: list[np.ndarray]) -> float 
     truth = truth[order]
     tp = np.cumsum(truth); fp = np.cumsum(~truth)
     recall = tp / truth.sum(); precision = tp / np.maximum(1, tp + fp)
-    return float(np.trapezoid(np.r_[1.0, precision], np.r_[0.0, recall]))
+    return float(trapezoid_integral(np.r_[1.0, precision], np.r_[0.0, recall]))
 
 
 @dataclass

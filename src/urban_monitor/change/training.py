@@ -25,6 +25,7 @@ from .models import build_change_model
 from .samplers import DatasetBalancedSampler, DemolitionPatchCompositionSampler, V2DirectionalSampler, DistributedSamplerView
 from .splits import resolve_train_validation_test_splits
 from .supervision_v2 import TestReadGuard
+from ..compat import create_grad_scaler
 
 
 STAGE_FILES = {
@@ -767,7 +768,7 @@ def train_change_stage(config: dict, index_path: str | Path, run: str | Path, st
     optimizer = torch.optim.AdamW([parameter for _, parameter in trainable_named], lr=float(values.get("learning_rate", 2e-4)), weight_decay=float(values.get("weight_decay", 1e-4)))
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, int(values.get("epochs", 30))))
     amp = bool(values.get("amp", True)) and device.type == "cuda"
-    scaler = torch.amp.GradScaler("cuda", enabled=amp, init_scale=float(values.get("amp_initial_scale", 1024.0)))
+    scaler = create_grad_scaler(device, amp, init_scale=float(values.get("amp_initial_scale", 1024.0)))
     best_path, last_path = checkpoints / STAGE_FILES[stage], checkpoints / f"last_{stage}.pth"
     start_epoch, best_metric = 0, -1.0
     if resume and last_path.exists():

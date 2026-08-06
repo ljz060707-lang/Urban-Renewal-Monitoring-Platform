@@ -25,6 +25,7 @@ from ..datasets.fusu import FUSUSampleDataset
 from ..models.surface_state_net import SurfaceStateNet
 from ..models.temporal_change_head import TemporalChangeHead
 from ..models.tfr import TemporalFeatureRefinement
+from urban_monitor.compat import create_grad_scaler
 from .checkpointing import save_checkpoint, select_better, sha256, write_hashes
 from .losses import cwld_loss, fusu_loss
 from .metrics import BinaryCounts, Confusion
@@ -284,7 +285,7 @@ def train(config_path: str | Path, repo: str | Path, *, run_dir: str | None = No
     optimizer = torch.optim.AdamW(parameters, lr=float(optimizer_config.get("decoder_lr", config.get("learning_rate", 3e-4))), weight_decay=float(optimizer_config.get("weight_decay", 0.01)))
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, int(config["epochs"])))
     amp = bool(config.get("amp", True) and device.type == "cuda")
-    scaler = torch.amp.GradScaler("cuda", enabled=amp)
+    scaler = create_grad_scaler(device, amp)
 
     codec = CWLDCodec(**config.get("codec", {"max_anchor_distance": 128, "min_distance_margin": 16, "ignore_index": 255}))
     manifests = {}

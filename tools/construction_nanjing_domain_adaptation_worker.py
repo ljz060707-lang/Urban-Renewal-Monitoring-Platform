@@ -27,8 +27,13 @@ from PIL import Image
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
 
+from urban_monitor.compat import autocast_context, create_grad_scaler
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC = PROJECT_ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 DEFAULT_RUN_ROOT = PROJECT_ROOT / "outputs" / "training" / "construction_nanjing_domain_adaptation_20260803_235940"
 DEFAULT_PACKAGE = PROJECT_ROOT / "outputs" / "models" / "construction_activity_v1" / "URRS-Construction-UCS386-v1.0-task-candidate_20260803_142054"
 MODEL_NAME = "nanjing_domain_adaptation_candidate"
@@ -165,11 +170,11 @@ def _criterion():
 
 
 def _amp_context(device: torch.device, enabled: bool):
-    return torch.amp.autocast("cuda", enabled=bool(enabled and device.type == "cuda"))
+    return autocast_context(device, bool(enabled and device.type == "cuda"))
 
 
 def _scaler(device: torch.device, enabled: bool):
-    return torch.amp.GradScaler("cuda", enabled=bool(enabled and device.type == "cuda"))
+    return create_grad_scaler(device, bool(enabled and device.type == "cuda"))
 
 
 def _loader(manifest: Path, image_size: int, *, shuffle: bool, seed: int, batch_size: int = 2) -> tuple[MixedManifestDataset, DataLoader]:

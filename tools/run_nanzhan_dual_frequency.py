@@ -899,6 +899,8 @@ def main(argv: list[str] | None = None) -> int:
             for stage in stage_order[1:]:
                 results[stage] = _run_stage(stage, project=project, run=run, source=source, args=args)
             print(json.dumps({"run_dir": str(run), "results": results}, ensure_ascii=False, indent=2, default=str)); return 0
+        if args.command == "discover":
+            governance_stage(project, run, source)
         result = _run_stage(args.command, project=project, run=run, source=source, args=args)
         if args.command == "acceptance":
             status = result.get("final_status")

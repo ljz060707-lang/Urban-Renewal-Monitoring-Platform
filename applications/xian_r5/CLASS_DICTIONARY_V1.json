@@ -1,0 +1,11 @@
+{
+  "STABLE": 1,
+  "ADDITION": 2,
+  "DEMOLITION": 3,
+  "UNRESOLVED": 4,
+  "CONFLICT": 5,
+  "BACKGROUND": 0,
+  "source": "D:\\Codex\\projects\\Documents-Codex\\2026-07-18\\urban-renewal-phase1-starter-v0-2\\src\\xian_r5\\reconstruction\\products.py",
+  "source_sha256": "8a4978c7f3bb307f891d28b0d81c2987e9f53495a7c725591aef84c97a7d936a",
+  "new_application_version": "XIAN_R5_CLASS_VIEW_V1; conflict5; background0 only for proven background, never unassigned"
+}

@@ -1,0 +1,12 @@
+{
+  "entry": "tools/run_xian_r5_integration.py --application",
+  "M1": "Existing roof_runtime.predict_roofs / probability / forward",
+  "M2": "Existing V2 runtime and matching_v2.CorrespondencePredictor; explicit context/native/endpoints adapter",
+  "M3": "Existing R4TrackingRunner.run_tracking and inherited topology edge candidates; application bounded B0 recheck",
+  "formal": "Existing reconstruction.core.reconstruct / TBIA diagnostic / resolver",
+  "fractions": "Existing label_transfer.Grid/aggregate generalized only from fixed EPSG32649 guard to projected-metre CRS guard",
+  "state": "Existing coordinate_states 1/0/U; application medoid adapter mirrors existing boundary Hausdorff selection without qualified-state fabrication",
+  "exports": "application_geometry and application adapters",
+  "legacy_run05": "Preserved in historical source and receipt; new input mode uses existing state/fraction implementation",
+  "training": "NOT_IMPLEMENTED_IN_APPLICATION"
+}

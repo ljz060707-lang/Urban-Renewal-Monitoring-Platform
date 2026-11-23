@@ -22,3 +22,16 @@ review/glm_scores.jsonl
 pytest_tmp/
 .patch_probe
 *.bak
+
+# Submeter pipeline local assets
+*.tif
+*.tiff
+*.gpkg
+*.shp
+*.safetensors
+*.ckpt
+*.npz
+*.tar
+*.tgz
+*.pem
+*.key

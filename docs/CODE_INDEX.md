@@ -381,6 +381,13 @@
 - [validate_repair.py](../research/building_governance/xian_2019_citywide_governance/validate_repair.py) — validate repair
 - [verify_local_delivery.py](../research/building_governance/xian_2019_citywide_governance/verify_local_delivery.py) — verify local delivery
 
+### research/building_governance/xian_split_and_coverage_diagnostic
+
+- [README.md](../research/building_governance/xian_split_and_coverage_diagnostic/README.md) — README
+- [replay.py](../research/building_governance/xian_split_and_coverage_diagnostic/replay.py) — Replay the frozen R21 geometry and solve R22 cut selection against manual reference.
+- [summarize.py](../research/building_governance/xian_split_and_coverage_diagnostic/summarize.py) — Summarize the cut replay and make native-image review sheets for zero coverage.
+- [train_cut_selector.py](../research/building_governance/xian_split_and_coverage_diagnostic/train_cut_selector.py) — Fit separate cut-gain and fragmentation classifiers on frozen R23 map splits.
+
 ### research/building_recognition/r15_native_refiner
 
 - [admit_sam_assets_local.py](../research/building_recognition/r15_native_refiner/admit_sam_assets_local.py) — Only official generic SAM code/checkpoint; no SA1B or other dataset downloads.

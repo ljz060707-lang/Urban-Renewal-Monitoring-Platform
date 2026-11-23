@@ -1,4 +1,0 @@
-﻿size,method,truth_objects,matched_objects,recall,mean_iou
-small,"truth area terciles: q33=1024.000, q67=1024.000",1,0,0.0,0.0
-medium,"truth area terciles: q33=1024.000, q67=1024.000",0,0,,0.0
-large,"truth area terciles: q33=1024.000, q67=1024.000",0,0,,0.0

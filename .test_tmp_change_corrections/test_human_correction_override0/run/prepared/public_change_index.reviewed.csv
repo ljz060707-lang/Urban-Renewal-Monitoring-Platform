@@ -1,3 +1,0 @@
-﻿sample_id,gt_cd_path,gt_new_path,gt_dem_path,binary_label_source,binary_original_hash,binary_correction_hash,sample_weight,review_decision,review_notes
-a,C:\Users\ljz52\Documents\Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\.test_tmp_change_corrections\test_human_correction_override0\run\review\corrections\binary\a.png,,,human_corrected_label,86686d9eb005257d237bb3b85b31348df465768c082b5d210d22bf99ab7e5bfb,5d19b1001e8a42974a97aeb656c2929736ad8c3f46c3e719d436f1d4d6a892be,1.0,label_error,已修正
-c,C:\Users\ljz52\Documents\Codex\2026-07-18\urban-renewal-phase1-starter-v0-2\outputs\urban-renewal-phase1-starter\.test_tmp_change_corrections\test_human_correction_override0\original.png,,,,,,2.0,prediction_error,hard

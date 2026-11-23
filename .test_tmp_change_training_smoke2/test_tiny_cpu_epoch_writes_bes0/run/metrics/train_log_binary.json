@@ -1,9 +1,0 @@
-[
-  {
-    "epoch": 0,
-    "train_loss": 1.449432373046875,
-    "val_loss": 1.4457924365997314,
-    "val_binary_f1": 0.0,
-    "learning_rate": 0.0001
-  }
-]

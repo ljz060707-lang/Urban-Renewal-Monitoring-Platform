@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-23 · 亚米遥感源码整理
+
+- 将历史案例复盘并入 research，具体写出研究轮次所解决的任务。
+- 增加模块状态、核心入口和可更新的逐文件索引。
+- 将生成的测试运行输出和包元数据从现行目录树移除，历史版本可按原提交查阅。
+
 ## V2 multi-teacher architecture
 
 - Added explicit teacher registry and dataset × head supervision routing.

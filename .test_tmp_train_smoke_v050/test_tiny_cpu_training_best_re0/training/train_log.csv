@@ -1,2 +1,0 @@
-﻿epoch,train_loss,learning_rate,precision,recall,f1,mean_matched_iou,dice,object_count_error,building_area_error,tp,fp,fn
-2,11.621878623962402,1e-05,0.0,0.0,0.0,0.0,0.0,0.0,-59.0,0.0,1.0,1.0

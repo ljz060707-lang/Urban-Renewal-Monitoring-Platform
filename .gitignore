@@ -35,3 +35,4 @@ pytest_tmp/
 *.tgz
 *.pem
 *.key
+*.egg-info/
